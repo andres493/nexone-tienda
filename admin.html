@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXONE Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+.admin-layout{display:grid;grid-template-columns:240px 1fr;gap:0;min-height:100vh}
+.admin-sidebar{background:var(--ink);padding:20px 0;display:flex;flex-direction:column}
+.admin-sidebar .brand{padding:0 20px;margin-bottom:28px;display:flex;align-items:center;gap:10px}
+.admin-sidebar .brand span{color:#fff;font-weight:900;font-size:18px}
+.admin-sidebar .brand .brand-logo{width:38px;height:38px;border-radius:10px}
+.admin-nav{display:flex;flex-direction:column;gap:2px;padding:0 10px;flex:1}
+.admin-nav button{text-align:left;padding:11px 14px;border:0;border-radius:var(--radius-sm);background:transparent;color:#94a3b8;font-weight:700;font-size:13px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:10px}
+.admin-nav button:hover{background:rgba(255,255,255,.08);color:#fff}
+.admin-nav button.active{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.3)}
+.admin-main{background:var(--bg);padding:28px;overflow:auto}
+.admin-header{margin-bottom:24px}
+.admin-header h1{margin:0;font-size:24px;letter-spacing:-.04em}
+.admin-header p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);transition:.15s}
+.stat-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+.stat-card b{display:block;font-size:28px;letter-spacing:-.04em;color:var(--brand);margin-bottom:2px}
+.stat-card span{color:var(--muted);font-size:12px;font-weight:700}
+.section-page{display:none}
+.section-page.active{display:block}
+.dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.table-panel{padding:0;overflow:auto;-webkit-overflow-scrolling:touch}
+.admin-table{width:100%;border-collapse:collapse;font-size:13px}
+.admin-table th{text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;border-bottom:2px solid var(--line);padding:12px 10px;font-weight:800}
+.admin-table td{border-bottom:1px solid var(--line);padding:12px 10px;vertical-align:middle}
+.admin-table tr:hover td{background:var(--panel-soft)}
+.status-badge{display:inline-flex;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:900}
+.status-badge.enviado{background:#d1fae5;color:#065f46}
+.status-badge.procesando{background:#fef3c7;color:#92400e}
+.status-badge.entregado{background:#dbeafe;color:#1e40af}
+.btn-icon{border:0;border-radius:var(--radius-sm);padding:6px 10px;font-size:12px;font-weight:800;cursor:pointer;transition:.15s}
+.btn-icon.edit{background:#dbeafe;color:#1e40af}
+.btn-icon.edit:hover{background:#bfdbfe;transform:translateY(-1px)}
+.btn-icon.delete{background:#fee2e2;color:#dc2626}
+.btn-icon.delete:hover{background:#fecaca;transform:translateY(-1px)}
+.modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+@media(max-width:1050px){.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-grid{grid-template-columns:1fr}}
+@media(max-width:800px){
+  .admin-layout{grid-template-columns:1fr}
+  .admin-sidebar{position:sticky;top:0;z-index:20;padding:12px 0;border-right:0;border-bottom:1px solid rgba(255,255,255,.1)}
+  .admin-sidebar .brand{padding:0 12px;margin-bottom:10px}
+  .admin-nav{flex-direction:row;overflow:auto;padding:0 12px}
+  .admin-nav button{white-space:nowrap}
+  .admin-main{padding:18px 14px 28px}
+  .admin-table{min-width:640px}
+}
+@media(max-width:520px){
+  .admin-main{padding:14px 10px 24px}
+  .admin-header h1{font-size:20px}
+  .stats-grid{grid-template-columns:1fr;gap:10px;margin-bottom:16px}
+  .stat-card{padding:14px}
+  .stat-card b{font-size:24px}
+  .modal-content{width:calc(100% - 20px);padding:18px}
+  .modal-actions{flex-direction:column-reverse}
+  .modal-actions .primary,.modal-actions .secondary{width:100%}
+}
+</style>
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="admin-sidebar">
+    <div class="brand">
+      <img class="brand-logo" src="assets/nexone-logo.jpeg" alt="NEXONE">
+      <span>NEXONE Admin</span>
+    </div>
+    <nav class="admin-nav">
+      <button class="active" data-page="dashboard">📊 Dashboard</button>
+      <button data-page="products">📦 Productos</button>
+      <button data-page="orders">📋 Pedidos</button>
+      <button data-page="add">➕ Nuevo producto</button>
+      <button data-page="flashsale">🔥 Flash Sale</button>
+      <button onclick="window.location.href='index.html'" style="margin-top:auto;color:#25d366">🏪 Ir a tienda</button>
+    </nav>
+  </aside>
+
+  <main class="admin-main">
+
+    <div class="section-page active" id="page-dashboard">
+      <div class="admin-header">
+        <h1>📊 Dashboard</h1>
+        <p>Resumen general de la tienda</p>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><b id="statProducts">0</b><span>Productos activos</span></div>
+        <div class="stat-card"><b id="statOrders">0</b><span>Pedidos</span></div>
+        <div class="stat-card"><b id="statRevenue">$0</b><span>Ingresos totales</span></div>
+        <div class="stat-card"><b id="statCustomers">0</b><span>Clientes</span></div>
+      </div>
+      <div class="dashboard-grid">
+        <div class="panel" style="padding:20px">
+          <h3 style="margin:0 0 14px;font-size:15px;font-weight:800">📈 Trading de Ventas</h3>
+          <canvas id="salesChart" height="200" style="width:100%"></canvas>
+        </div>
+        <div class="panel" style="padding:20px">
+          <h3 style="margin:0 0 14px;font-size:15px;font-weight:800">🏆 Productos Top</h3>
+          <div id="topProducts" style="font-size:13px"></div>
+        </div>
+      </div>
+      <div class="panel" style="padding:20px">
+        <h3 style="margin:0 0 14px;font-size:16px;font-weight:800">Pedidos recientes</h3>
+        <table class="admin-table">
+          <thead><tr><th>Pedido</th><th>Cliente</th><th>Total</th><th>Estado</th></tr></thead>
+          <tbody id="dashboardOrders"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-page" id="page-products">
+      <div class="admin-header">
+        <h1>📦 Productos</h1>
+        <p>Gestiona tu catalogo de productos</p>
+      </div>
+      <div class="panel table-panel">
+        <table class="admin-table">
+          <thead><tr><th>ID</th><th>Nombre</th><th>Categoria</th><th>Precio</th><th>Vendidos</th><th>Rating</th><th>Acciones</th></tr></thead>
+          <tbody id="productsTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-page" id="page-orders">
+      <div class="admin-header">
+        <h1>📋 Pedidos</h1>
+        <p>Administra los pedidos de tus clientes</p>
+      </div>
+      <div class="panel table-panel">
+        <table class="admin-table">
+          <thead><tr><th>Pedido</th><th>Cliente</th><th>Producto</th><th>Total</th><th>Estado</th><th>Contacto</th></tr></thead>
+          <tbody id="ordersTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-page" id="page-add">
+      <div class="admin-header">
+        <h1>➕ Nuevo producto</h1>
+        <p>Agrega un producto al catalogo</p>
+      </div>
+      <div class="panel" style="padding:24px">
+        <form class="admin-form" id="productForm">
+          <input id="newName" required placeholder="Nombre del producto">
+          <input id="newPrice" required type="number" min="1" placeholder="Precio COP">
+          <input id="newOldPrice" type="number" min="0" placeholder="Precio anterior COP (opcional)">
+          <input id="newCategory" list="newCatList" placeholder="Categoria del producto">
+          <datalist id="newCatList">
+            <option value="Tecnologia">
+            <option value="Belleza">
+            <option value="Hogar">
+            <option value="Moda">
+            <option value="Fitness">
+            <option value="Deportes">
+            <option value="Mascotas">
+            <option value="Bebes">
+            <option value="Juguetes">
+            <option value="Herramientas">
+            <option value="Salud">
+            <option value="Alimentos">
+            <option value="Automotriz">
+            <option value="Oficina">
+            <option value="Jardin">
+            <option value="Musica">
+            <option value="Fotografia">
+            <option value="Otros">
+          </datalist>
+          <input type="file" id="newImageFile" accept="image/*" style="border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px;background:var(--panel-soft)">
+          <input id="newImage" placeholder="O pega URL de imagen">
+          <div id="newImagePreview" style="display:none;width:100px;height:100px;border-radius:var(--radius-sm);overflow:hidden;border:2px solid var(--line)"><img style="width:100%;height:100%;object-fit:cover"></div>
+          <textarea id="newDescription" placeholder="Descripcion del producto"></textarea>
+          <button class="primary" type="submit">Publicar producto</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="section-page" id="page-flashsale">
+      <div class="admin-header">
+        <h1>🔥 Flash Sale</h1>
+        <p>Configura ofertas por tiempo limitado y cupones</p>
+      </div>
+      <div class="panel" style="padding:24px;max-width:520px">
+        <form class="admin-form" id="flashForm">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700">
+            <input type="checkbox" id="fsEnabled" style="width:18px;height:18px">
+            Activar Flash Sale
+          </label>
+          <input id="fsTitle" placeholder="Titulo (ej: Flash Sale)">
+          <input id="fsSubtitle" placeholder="Subtitulo (ej: Ofertas por tiempo limitado)">
+          <label style="font-weight:700;font-size:13px;margin-top:8px">Finaliza:</label>
+          <input id="fsEndTime" type="datetime-local">
+          <hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700">
+            <input type="checkbox" id="fsCouponEnabled" style="width:18px;height:18px">
+            Mostrar cupon
+          </label>
+          <input id="fsCouponCode" placeholder="Codigo de cupon (ej: NEX10)">
+          <input id="fsCouponDesc" placeholder="Descripcion del cupon">
+          <button class="primary" type="submit" style="margin-top:8px">Guardar configuracion</button>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal" id="editModal">
+  <div class="modal-bg" id="modalBg"></div>
+  <div class="modal-content">
+    <h2>✏️ Editar producto</h2>
+    <form class="admin-form" id="editForm">
+      <input id="editId" type="hidden">
+      <input id="editName" required placeholder="Nombre">
+      <input id="editPrice" required type="number" min="1" placeholder="Precio COP">
+      <input id="editOldPrice" type="number" min="0" placeholder="Precio anterior COP">
+      <input id="editCategory" list="editCatList" placeholder="Categoria">
+      <datalist id="editCatList">
+        <option value="Tecnologia">
+        <option value="Belleza">
+        <option value="Hogar">
+        <option value="Moda">
+        <option value="Fitness">
+        <option value="Deportes">
+        <option value="Mascotas">
+        <option value="Bebes">
+        <option value="Juguetes">
+        <option value="Herramientas">
+        <option value="Salud">
+        <option value="Alimentos">
+        <option value="Automotriz">
+        <option value="Oficina">
+        <option value="Jardin">
+        <option value="Musica">
+        <option value="Fotografia">
+        <option value="Otros">
+      </datalist>
+      <input type="file" id="editImageFile" accept="image/*" style="border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px;background:var(--panel-soft)">
+      <input id="editImage" placeholder="O pega URL de imagen">
+      <div id="editImagePreview" style="display:none;width:100px;height:100px;border-radius:var(--radius-sm);overflow:hidden;border:2px solid var(--line)"><img style="width:100%;height:100%;object-fit:cover"></div>
+      <textarea id="editDescription" placeholder="Descripcion"></textarea>
+      <div class="modal-actions">
+        <button type="button" class="secondary" id="cancelEdit">Cancelar</button>
+        <button type="submit" class="primary">Guardar cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div id="loginOverlay" style="position:fixed;inset:0;z-index:999;background:linear-gradient(135deg,#0f172a,#1e3a8a);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:20px;padding:40px 36px;width:min(380px,100%);text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.3)">
+    <img src="assets/nexone-logo.jpeg" alt="NEXONE" style="width:64px;height:64px;border-radius:16px;object-fit:cover;margin:0 auto 16px;box-shadow:0 4px 16px rgba(37,99,235,.2)">
+    <h2 style="margin:0 0 4px;font-size:22px;letter-spacing:-.04em;color:var(--ink)">Acceso Administrador</h2>
+    <p style="margin:0 0 24px;color:var(--muted);font-size:13px">Ingresa la contraseña para continuar</p>
+    <input id="loginPass" type="password" placeholder="Contraseña" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:14px;font-size:15px;margin-bottom:14px;text-align:center;transition:.15s">
+    <button id="loginBtn" class="primary" style="width:100%">Ingresar</button>
+    <p id="loginError" style="color:var(--danger);font-size:12px;margin:10px 0 0;display:none;font-weight:700">Contraseña incorrecta</p>
+    <a href="index.html" style="display:inline-block;margin-top:16px;font-size:12px;color:var(--muted);font-weight:600">← Volver a la tienda</a>
+  </div>
+</div>
+
+<script>
+document.getElementById('loginBtn').addEventListener('click', function() {
+  if (document.getElementById('loginPass').value === 'admin123') {
+    document.getElementById('loginOverlay').style.display = 'none';
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+  }
+});
+document.getElementById('loginPass').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+</script>
+<script src="js/admin.js"></script>
+</body>
+</html>

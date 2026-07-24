@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXONE | Tienda online de confianza</title>
+<meta name="description" content="NEXONE - Los mejores productos al mejor precio. Envios a toda Colombia.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <img class="brand-logo" src="assets/nexone-logo.jpeg" alt="NEXONE">
+      <span>NEXONE</span>
+    </div>
+    <label class="search">
+      <span>🔍</span>
+      <input id="searchInput" type="search" placeholder="Buscar productos...">
+    </label>
+    <div class="top-trust">
+      <span class="trust-chip">🚚 Envio gratis +$50.000</span>
+      <span class="trust-chip">🔒 Pago seguro</span>
+    </div>
+  </div>
+</header>
+
+<div class="trust-bar">
+  <div class="trust-bar-inner">
+    <div class="trust-item"><span class="trust-icon">🚚</span><div><strong>Envio rapido</strong><small>Envio a toda Colombia</small></div></div>
+    <div class="trust-item"><span class="trust-icon">🔒</span><div><strong>Compra segura</strong><small>Proteccion al comprador</small></div></div>
+    <div class="trust-item"><span class="trust-icon">✅</span><div><strong>Productos verificados</strong><small>Calidad garantizada</small></div></div>
+    <div class="trust-item"><span class="trust-icon">💬</span><div><strong>Atencion 24/7</strong><small>WhatsApp directo</small></div></div>
+  </div>
+</div>
+
+<div class="categories-scroll">
+  <div class="cat-list" id="catList"></div>
+</div>
+
+<main class="shell">
+  <div class="flash-banner" id="flashBanner" style="display:none">
+    <div class="flash-left">
+      <h2>🔥 Flash Sale</h2>
+      <span class="flash-sub">Ofertas por tiempo limitado</span>
+    </div>
+    <div class="flash-timer">
+      <div class="time-block"><span id="flashHours">00</span><span class="time-label">Horas</span></div>
+      <span>:</span>
+      <div class="time-block"><span id="flashMins">00</span><span class="time-label">Min</span></div>
+      <span>:</span>
+      <div class="time-block"><span id="flashSecs">00</span><span class="time-label">Seg</span></div>
+    </div>
+    <button class="flash-cta" data-scroll-products>Ver ofertas</button>
+  </div>
+
+  <div class="coupon-bar" id="couponBar" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <strong>🎉 CUPON EXCLUSIVO</strong>
+      <span class="coupon-code">NEX10</span>
+      <p>10% OFF en tu primer pedido</p>
+    </div>
+    <button class="copy-btn">Copiar</button>
+  </div>
+
+  <div class="featured-deals" id="featuredDeals" style="display:none">
+    <div class="featured-header">
+      <h2>🔥 Mas vendidos</h2>
+      <a data-scroll-products>Ver todo →</a>
+    </div>
+    <div class="deal-grid" id="dealGrid"></div>
+  </div>
+
+  <div class="toolbar" id="productsTop">
+    <div>
+      <h2>Todos los productos</h2>
+      <p id="resultsText">Productos verificados para venta online.</p>
+    </div>
+    <div class="spacer"></div>
+    <div class="filters" id="filters"></div>
+    <select id="sortSelect" class="sort-select" aria-label="Ordenar">
+      <option value="featured">Destacados</option>
+      <option value="priceAsc">Precio menor</option>
+      <option value="priceDesc">Precio mayor</option>
+      <option value="rating">Mejor rating</option>
+    </select>
+  </div>
+  <div class="product-grid" id="productGrid"></div>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-col">
+      <div class="brand" style="margin-bottom:12px">
+        <img class="brand-logo" src="assets/nexone-logo.jpeg" alt="NEXONE">
+        <span>NEXONE</span>
+      </div>
+      <p style="color:var(--muted);font-size:13px;max-width:280px">Tu tienda de confianza con los mejores productos y precios en Colombia.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Contacto</h4>
+      <a href="https://wa.me/573011497152" target="_blank" class="footer-link">💬 WhatsApp</a>
+      <span class="footer-link">📍 Colombia</span>
+    </div>
+    <div class="footer-col">
+      <h4>Informacion</h4>
+      <span class="footer-link">🚚 Envios a toda Colombia</span>
+      <span class="footer-link">🔒 Pago contra entrega</span>
+      <span class="footer-link">✅ Garantia de productos</span>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>&copy; 2026 NEXONE. Todos los derechos reservados.</span>
+    <a href="admin.html" style="color:#64748b;font-size:11px;margin-left:12px">Admin</a>
+  </div>
+</footer>
+
+<a id="whatsappFloat" href="https://wa.me/573011497152?text=Hola%21+Quiero+informacion+sobre+productos" target="_blank" class="wa-float" aria-label="WhatsApp">
+  <span>💬</span>
+</a>
+
+<div class="toast" id="toast"></div>
+<script src="js/app.js"></script>
+</body>
+</html>
