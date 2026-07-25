@@ -1,0 +1,213 @@
+const SYNC_API = '/api/sync';
+
+let syncPollTimer = null;
+
+function syncShowToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(syncShowToast._t);
+  syncShowToast._t = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+async function loadSyncProviders() {
+  try {
+    const res = await fetch(SYNC_API + '/providers');
+    const providers = await res.json();
+    const el = document.getElementById('syncProvidersStatus');
+    el.innerHTML = providers.map(p => {
+      const color = p.configured ? '#d1fae5' : '#fee2e2';
+      const textColor = p.configured ? '#065f46' : '#dc2626';
+      const icon = p.configured ? '✅' : '❌';
+      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:${color};color:${textColor}">${icon} ${p.name}</span>`;
+    }).join('');
+    const providerSelect = document.getElementById('syncProvider');
+    if (providerSelect) {
+      providerSelect.innerHTML = providers.map(p => `<option value="${p.id}" ${!p.configured ? 'disabled' : ''}>${p.name} ${!p.configured ? '(sin configurar)' : ''}</option>`).join('');
+    }
+  } catch {}
+}
+
+async function loadSyncConfig() {
+  try {
+    const res = await fetch(SYNC_API + '/config');
+    const config = await res.json();
+    document.getElementById('syncAutoEnabled').checked = config.autoSyncEnabled || false;
+    document.getElementById('syncInterval').value = config.autoSyncIntervalMinutes || 60;
+    document.getElementById('syncDefaultMargin').value = config.defaultProfitMargin || 35;
+    document.getElementById('syncMaxProducts').value = config.maxProductsPerSync || 500;
+  } catch {}
+}
+
+async function loadSyncJobs() {
+  try {
+    const res = await fetch(SYNC_API + '/jobs');
+    const jobs = await res.json();
+    renderSyncJobs(jobs);
+    updateSyncStats(jobs);
+  } catch {}
+}
+
+async function loadSyncLogs(jobId) {
+  try {
+    const url = jobId ? SYNC_API + '/logs?jobId=' + jobId : SYNC_API + '/logs?limit=50';
+    const res = await fetch(url);
+    const logs = await res.json();
+    renderSyncLogs(logs);
+  } catch {}
+}
+
+function updateSyncStats(jobs) {
+  const synced = jobs.filter(j => j.status === 'completed').reduce((s, j) => s + (j.stats?.imported || 0) + (j.stats?.updated || 0), 0);
+  const active = jobs.filter(j => j.status === 'running' || j.status === 'queued').length;
+  const lastJob = jobs.find(j => j.completedAt);
+  document.getElementById('syncStatTotal').textContent = synced.toLocaleString('es-ES');
+  document.getElementById('syncStatActive').textContent = active;
+  document.getElementById('syncStatLast').textContent = lastJob ? new Date(lastJob.completedAt).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
+}
+
+function renderSyncJobs(jobs) {
+  const tbody = document.getElementById('syncJobsBody');
+  if (!jobs.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin trabajos de sincronizacion</td></tr>'; return; }
+  tbody.innerHTML = jobs.slice(0, 20).map(j => {
+    const progressPct = j.progress?.total ? Math.round((j.progress.current / j.progress.total) * 100) : 0;
+    const statsText = j.stats ? `${j.stats.imported}+ ${j.stats.updated}~ ${j.stats.skipped}- ${j.stats.errors}!` : '-';
+    const shortId = j.id.length > 18 ? j.id.slice(0, 18) + '...' : j.id;
+    const queryShort = (j.searchQuery || '').length > 20 ? j.searchQuery.slice(0, 20) + '...' : (j.searchQuery || '-');
+    let actions = '';
+    if (j.status === 'running') actions = `<button class="btn-icon edit" onclick="syncPause('${j.id}')" title="Pausar">⏸</button> <button class="btn-icon delete" onclick="syncCancel('${j.id}')" title="Cancelar">⏹</button>`;
+    else if (j.status === 'paused') actions = `<button class="btn-icon edit" onclick="syncResume('${j.id}')" title="Reanudar">▶</button> <button class="btn-icon delete" onclick="syncCancel('${j.id}')" title="Cancelar">⏹</button>`;
+    else if (j.status === 'error') actions = `<button class="btn-icon edit" onclick="syncResume('${j.id}')" title="Reintentar">🔄</button>`;
+    return `<tr>
+      <td style="font-size:11px;font-family:monospace">${shortId}</td>
+      <td><span class="provider-badge">${j.provider}</span></td>
+      <td style="font-size:12px">${queryShort}</td>
+      <td><div class="sync-progress"><div class="sync-progress-fill" style="width:${progressPct}%"></div></div><span style="font-size:10px;color:var(--muted)">${progressPct}%</span></td>
+      <td style="font-size:11px;white-space:nowrap">${statsText}</td>
+      <td><span class="sync-status ${j.status}">${j.status}</span></td>
+      <td style="white-space:nowrap">${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSyncLogs(logs) {
+  const el = document.getElementById('syncLogsList');
+  if (!logs.length) { el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">Sin logs</div>'; return; }
+  el.innerHTML = logs.map(l => {
+    const time = new Date(l.timestamp).toLocaleString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return `<div class="sync-log-item ${l.level}"><span class="sync-log-time">${time}</span><span class="sync-log-msg">${l.message}</span></div>`;
+  }).join('');
+}
+
+async function syncPause(jobId) {
+  try {
+    await fetch(SYNC_API + '/pause/' + jobId, { method: 'POST' });
+    syncShowToast('Sincronizacion pausada');
+    await loadSyncJobs();
+  } catch {}
+}
+
+async function syncResume(jobId) {
+  try {
+    await fetch(SYNC_API + '/resume/' + jobId, { method: 'POST' });
+    syncShowToast('Sincronizacion reanudada');
+    await loadSyncJobs();
+  } catch {}
+}
+
+async function syncCancel(jobId) {
+  if (!confirm('¿Cancelar esta sincronizacion?')) return;
+  try {
+    await fetch(SYNC_API + '/cancel/' + jobId, { method: 'POST' });
+    syncShowToast('Sincronizacion cancelada');
+    await loadSyncJobs();
+  } catch {}
+}
+
+document.getElementById('syncStartBtn')?.addEventListener('click', async () => {
+  const provider = document.getElementById('syncProvider').value;
+  const searchType = document.getElementById('syncSearchType').value;
+  const searchQuery = document.getElementById('syncSearchQuery').value.trim();
+  const profitMargin = Number(document.getElementById('syncProfitMargin').value);
+  const maxProducts = Number(document.getElementById('syncMaxProducts').value);
+  if (!searchQuery) return syncShowToast('Escribe un termino de busqueda');
+
+  await fetch(SYNC_API + '/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ maxProductsPerSync: maxProducts }),
+  });
+
+  try {
+    const res = await fetch(SYNC_API + '/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, searchType, searchQuery, profitMargin }),
+    });
+    const data = await res.json();
+    if (data.error) return syncShowToast('Error: ' + data.error);
+    syncShowToast('Sincronizacion iniciada');
+    await loadSyncJobs();
+    startSyncPolling();
+  } catch (e) {
+    syncShowToast('Error al iniciar: ' + e.message);
+  }
+});
+
+document.getElementById('syncSaveConfigBtn')?.addEventListener('click', async () => {
+  try {
+    await fetch(SYNC_API + '/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        autoSyncEnabled: document.getElementById('syncAutoEnabled').checked,
+        autoSyncIntervalMinutes: Number(document.getElementById('syncInterval').value),
+        defaultProfitMargin: Number(document.getElementById('syncDefaultMargin').value),
+        maxProductsPerSync: Number(document.getElementById('syncMaxProducts').value),
+      }),
+    });
+    syncShowToast('Configuracion guardada');
+  } catch (e) {
+    syncShowToast('Error: ' + e.message);
+  }
+});
+
+document.getElementById('syncRefreshBtn')?.addEventListener('click', () => loadSyncJobs());
+document.getElementById('syncLogsRefreshBtn')?.addEventListener('click', () => loadSyncLogs());
+
+document.getElementById('syncSearchQuery')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('syncStartBtn')?.click();
+});
+
+function startSyncPolling() {
+  if (syncPollTimer) return;
+  syncPollTimer = setInterval(async () => {
+    await loadSyncJobs();
+    await loadSyncLogs();
+    const res = await fetch(SYNC_API + '/status');
+    const data = await res.json();
+    if (data.activeSyncs === 0) {
+      clearInterval(syncPollTimer);
+      syncPollTimer = null;
+    }
+  }, 5000);
+}
+
+function renderSyncPage() {
+  loadSyncProviders();
+  loadSyncConfig();
+  loadSyncJobs();
+  loadSyncLogs();
+}
+
+document.querySelectorAll('.admin-nav button[data-page]').forEach(btn => {
+  btn.addEventListener('click', function () {
+    if (this.dataset.page === 'sync') {
+      renderSyncPage();
+      const res = fetch(SYNC_API + '/status').then(r => r.json()).then(data => {
+        if (data.activeSyncs > 0) startSyncPolling();
+      }).catch(() => {});
+    }
+  });
+});

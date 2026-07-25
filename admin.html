@@ -81,6 +81,7 @@
       <button data-page="add">➕ Nuevo producto</button>
       <button data-page="import">🔗 Importar producto</button>
       <button data-page="flashsale">🔥 Flash Sale</button>
+      <button data-page="sync">🔄 Sincronizar</button>
       <button onclick="window.location.href='index.html'" style="margin-top:auto;color:#25d366">🏪 Ir a tienda</button>
     </nav>
   </aside>
@@ -240,6 +241,87 @@
       </div>
     </div>
 
+    <div class="section-page" id="page-sync">
+      <div class="admin-header">
+        <h1>🔄 Sincronizar inventario</h1>
+        <p>Importa y sincroniza productos desde multiples proveedores</p>
+      </div>
+      <div id="syncProvidersStatus" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap"></div>
+      <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px">
+        <div class="stat-card"><b id="syncStatTotal">0</b><span>Productos sync</span></div>
+        <div class="stat-card"><b id="syncStatActive">0</b><span>Sincronizaciones activas</span></div>
+        <div class="stat-card"><b id="syncStatLast">-</b><span>Ultima sincronizacion</span></div>
+      </div>
+      <div class="sync-grid">
+        <div class="panel" style="padding:20px">
+          <h3 style="margin:0 0 14px;font-size:15px;font-weight:800">🚀 Nueva sincronizacion</h3>
+          <div class="admin-form" style="max-width:100%">
+            <select id="syncProvider" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;background:var(--panel-soft);font-weight:700">
+              <option value="aliexpress">AliExpress</option>
+              <option value="amazon">Amazon</option>
+              <option value="alibaba">Alibaba</option>
+            </select>
+            <select id="syncSearchType" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;background:var(--panel-soft);font-weight:700">
+              <option value="keywords">Palabras clave</option>
+              <option value="category">Categoria</option>
+              <option value="brand">Marca</option>
+            </select>
+            <input id="syncSearchQuery" type="search" placeholder="Ej: wireless earbuds, electronica, Samsung">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div>
+                <label style="font-weight:700;font-size:12px;display:block;margin-bottom:4px">Margen de ganancia %</label>
+                <input id="syncProfitMargin" type="number" min="0" max="500" value="35" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;background:var(--panel-soft)">
+              </div>
+              <div>
+                <label style="font-weight:700;font-size:12px;display:block;margin-bottom:4px">Max productos</label>
+                <input id="syncMaxProducts" type="number" min="1" max="5000" value="500" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;background:var(--panel-soft)">
+              </div>
+            </div>
+            <button class="primary" id="syncStartBtn" style="width:100%">▶ Iniciar sincronizacion</button>
+          </div>
+        </div>
+        <div class="panel" style="padding:20px">
+          <h3 style="margin:0 0 14px;font-size:15px;font-weight:800">⚙ Configuracion automatica</h3>
+          <div class="admin-form" style="max-width:100%">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700">
+              <input type="checkbox" id="syncAutoEnabled" style="width:18px;height:18px">
+              Sincronizacion automatica
+            </label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div>
+                <label style="font-weight:700;font-size:12px;display:block;margin-bottom:4px">Intervalo (minutos)</label>
+                <input id="syncInterval" type="number" min="5" max="1440" value="60" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;background:var(--panel-soft)">
+              </div>
+              <div>
+                <label style="font-weight:700;font-size:12px;display:block;margin-bottom:4px">Margen default %</label>
+                <input id="syncDefaultMargin" type="number" min="0" max="500" value="35" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;background:var(--panel-soft)">
+              </div>
+            </div>
+            <button class="secondary" id="syncSaveConfigBtn" style="width:100%">💾 Guardar configuracion</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="padding:20px;margin-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <h3 style="margin:0;font-size:15px;font-weight:800">📋 Trabajos de sincronizacion</h3>
+          <button class="secondary" id="syncRefreshBtn" style="padding:6px 12px;font-size:12px">🔄 Actualizar</button>
+        </div>
+        <div class="table-panel">
+          <table class="admin-table" id="syncJobsTable">
+            <thead><tr><th>ID</th><th>Proveedor</th><th>Busqueda</th><th>Progreso</th><th>Stats</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="syncJobsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel" style="padding:20px;margin-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <h3 style="margin:0;font-size:15px;font-weight:800">📝 Logs de sincronizacion</h3>
+          <button class="secondary" id="syncLogsRefreshBtn" style="padding:6px 12px;font-size:12px">🔄 Actualizar</button>
+        </div>
+        <div id="syncLogsList" style="max-height:300px;overflow-y:auto;font-size:12px;font-family:monospace"></div>
+      </div>
+    </div>
+
     <div class="modal" id="importPreviewModal">
       <div class="modal-bg" id="importPreviewBg"></div>
       <div class="modal-content" style="max-width:560px">
@@ -375,5 +457,6 @@ document.getElementById('loginPass').addEventListener('keydown', function(e) {
 });
 </script>
 <script src="js/admin.js"></script>
+<script src="js/sync-admin.js"></script>
 </body>
 </html>

@@ -16,11 +16,14 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(__dirname));
 
+const syncRoutes = require('./sync-routes');
+app.locals.broadcast = null;
+
 function readDB() {
   try {
     return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
   } catch {
-    const init = { products: [], orders: [], flashSale: { enabled: false, title: 'Flash Sale', subtitle: 'Ofertas por tiempo limitado', endTime: '', couponEnabled: false, couponCode: 'NEX10', couponDescription: '10% OFF en tu primer pedido' } };
+    const init = { products: [], orders: [], flashSale: { enabled: false, title: 'Flash Sale', subtitle: 'Ofertas por tiempo limitado', endTime: '', couponEnabled: false, couponCode: 'NEX10', couponDescription: '10% OFF en tu primer pedido' }, syncJobs: [], syncLogs: [], syncConfig: { defaultProfitMargin: 35, autoSyncEnabled: false, autoSyncIntervalMinutes: 60, maxProductsPerSync: 500, providers: { aliexpress: { enabled: false, profitMargin: 35 }, amazon: { enabled: false, profitMargin: 35 }, alibaba: { enabled: false, profitMargin: 35 } } } };
     fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
     fs.writeFileSync(DB_FILE, JSON.stringify(init, null, 2));
     return init;
@@ -36,6 +39,7 @@ function broadcast(event, data) {
   const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const res of sseClients) res.write(msg);
 }
+app.locals.broadcast = broadcast;
 
 app.get('/api/sse', (req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
@@ -315,11 +319,15 @@ app.post('/api/search-amazon', async (req, res) => {
   }
 });
 
+// ─── Sync Module Routes ───
+app.use('/api/sync', syncRoutes);
+
 // ─── API Status ───
 app.get('/api/status', (req, res) => {
   res.json({
     aliExpress: !!(process.env.ALIEXPRESS_APP_KEY && process.env.ALIEXPRESS_APP_SECRET),
     amazon: !!(process.env.AMAZON_CREDENTIAL_ID && process.env.AMAZON_CREDENTIAL_SECRET),
+    alibaba: !!(process.env.ALIEXPRESS_APP_KEY && process.env.ALIEXPRESS_APP_SECRET),
   });
 });
 
