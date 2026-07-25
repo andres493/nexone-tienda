@@ -334,133 +334,183 @@ document.querySelectorAll('.admin-nav button[data-page]').forEach(btn => {
 });
 
 let flashSale = { enabled: false };
+const USD_TO_COP = 4200;
+let currentPlatform = 'aliexpress';
+let currentPage = 1;
+let lastSearchResults = [];
 
 function renderImportCategoryList() {
   const cats = [...new Set(getProducts().map(p => p.category))];
   const defaultCats = ['Tecnologia','Belleza','Hogar','Moda','Fitness','Deportes','Mascotas','Bebes','Juguetes','Herramientas','Salud','Alimentos','Automotriz','Oficina','Jardin','Musica','Fotografia','Otros'];
   const allCats = [...new Set([...cats, ...defaultCats])];
-  const dl = document.getElementById('importCatList');
-  if (dl) dl.innerHTML = allCats.map(c => `<option value="${c}">`).join('');
+  document.querySelectorAll('#prevCatList').forEach(dl => { dl.innerHTML = allCats.map(c => `<option value="${c}">`).join(''); });
 }
 
-const platformColors = {
-  'Temu': '#fb7701', 'AliExpress': '#e43225', 'Amazon': '#ff9900',
-  'Shopee': '#ee4d2d', 'Shein': '#000', 'MercadoLibre': '#ffe600', 'Otro': '#64748b'
-};
-
-function detectPlatform(url) {
-  if (/temu\.com/i.test(url)) return 'Temu';
-  if (/aliexpress/i.test(url)) return 'AliExpress';
-  if (/amazon\./i.test(url)) return 'Amazon';
-  if (/shopee\./i.test(url)) return 'Shopee';
-  if (/shein\.com/i.test(url)) return 'Shein';
-  if (/mercadolibre\./i.test(url)) return 'MercadoLibre';
-  return 'Otro';
-}
-
-function showPlatformBadge(platform) {
-  const el = document.getElementById('importPlatformBadge');
-  const color = platformColors[platform] || '#64748b';
-  el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;font-size:12px;font-weight:800;color:#fff;background:${color}">${platform}</span>`;
-  el.style.display = 'block';
-}
-
-document.getElementById('importBtn').addEventListener('click', async function () {
-  const url = document.getElementById('importUrl').value.trim();
-  if (!url) return;
-  const platform = detectPlatform(url);
-  showPlatformBadge(platform);
-  document.getElementById('importLoading').style.display = 'block';
-  document.getElementById('importResult').style.display = 'none';
-  this.disabled = true;
+async function checkApiStatus() {
   try {
-    const res = await fetch(API + '/api/import-url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
+    const res = await fetch(API + '/api/status');
     const data = await res.json();
-    document.getElementById('importName').value = data.title || '';
-    document.getElementById('importImage').value = data.image || '';
-    document.getElementById('importDescription').value = data.description || '';
-    document.getElementById('importProvider').value = platform;
-    document.getElementById('importSourceUrl').value = url;
-    if (data.price) {
-      const usdPrice = parseFloat(data.price);
-      const copPrice = platform === 'Amazon' ? Math.round(usdPrice * 4200) : Math.round(usdPrice * 4200);
-      document.getElementById('importPrice').value = copPrice || '';
-      document.getElementById('importOldPrice').value = copPrice ? Math.round(copPrice * 1.35) : '';
-    }
-    if (data.image) {
-      const preview = document.getElementById('importPreview');
-      preview.style.display = 'block';
-      preview.querySelector('img').src = data.image;
-    }
-    document.getElementById('importResult').style.display = 'block';
-  } catch {
-    document.getElementById('importResult').style.display = 'block';
-  }
-  document.getElementById('importLoading').style.display = 'none';
-  this.disabled = false;
+    const el = document.getElementById('apiStatus');
+    el.innerHTML = `
+      <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:${data.aliExpress ? '#d1fae5' : '#fee2e2'};color:${data.aliExpress ? '#065f46' : '#dc2626'}">${data.aliExpress ? '✅ AliExpress conectado' : '❌ AliExpress sin configurar'}</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;background:${data.amazon ? '#d1fae5' : '#fee2e2'};color:${data.amazon ? '#065f46' : '#dc2626'}">${data.amazon ? '✅ Amazon conectado' : '❌ Amazon sin configurar'}</span>
+    `;
+    document.getElementById('amzNote').textContent = data.amazon ? '' : 'Amazon requiere 10 ventas en 30 dias para activar API. Mientras tanto usa el importador por URL.';
+  } catch {}
+}
+
+document.querySelectorAll('.import-tab').forEach(tab => {
+  tab.addEventListener('click', function () {
+    document.querySelectorAll('.import-tab').forEach(t => { t.classList.remove('active'); t.style.borderBottomColor = 'transparent'; t.style.color = 'var(--muted)'; });
+    this.classList.add('active');
+    this.style.borderBottomColor = 'var(--brand)';
+    this.style.color = 'var(--brand)';
+    currentPlatform = this.dataset.platform;
+    ['aliexpress', 'amazon', 'url'].forEach(p => {
+      const area = document.getElementById('searchArea-' + p);
+      if (area) area.style.display = p === currentPlatform ? '' : 'none';
+    });
+    document.getElementById('importResults').style.display = 'none';
+    document.getElementById('importError').style.display = 'none';
+  });
 });
 
-document.getElementById('importImageFile')?.addEventListener('change', function () {
-  const file = this.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    document.getElementById('importImage').value = e.target.result;
-    const preview = document.getElementById('importPreview');
-    preview.style.display = 'block';
-    preview.querySelector('img').src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-});
+function renderSearchResults(products, total) {
+  lastSearchResults = products;
+  const grid = document.getElementById('importResultsGrid');
+  document.getElementById('importResults').style.display = products.length ? '' : 'none';
+  document.getElementById('importResultsCount').textContent = products.length ? `${total || products.length} productos encontrados` : '';
+  document.getElementById('aliPrevBtn').disabled = currentPage <= 1;
+  document.getElementById('aliNextBtn').disabled = products.length < 20;
 
-document.getElementById('importSaveBtn').addEventListener('click', async function () {
-  const name = document.getElementById('importName').value.trim();
-  const price = Number(document.getElementById('importPrice').value);
+  grid.innerHTML = products.map((p, i) => {
+    const priceUsd = parseFloat(p.price) || 0;
+    const priceCop = Math.round(priceUsd * USD_TO_COP);
+    return `
+    <div style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:.15s" onmouseenter="this.style.boxShadow='var(--shadow-lg)'" onmouseleave="this.style.boxShadow='var(--shadow)'" onclick="openImportPreview(${i})">
+      <div style="aspect-ratio:1;background:#f1f5f9;overflow:hidden"><img src="${p.image}" style="width:100%;height:100%;object-fit:cover" onerror="this.src='https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=60'"></div>
+      <div style="padding:10px">
+        <div style="font-size:12px;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:6px">${p.title || 'Sin titulo'}</div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">⭐ ${p.rating || '4.7'} · ${p.orders || 0} vendidos${p.shipping ? ' · ' + p.shipping : ''}</div>
+        <div style="font-size:16px;font-weight:900;color:var(--brand)">${money.format(priceCop)} <span style="font-size:11px;color:var(--muted);font-weight:600;text-decoration:line-through">${money.format(Math.round(priceCop * 1.35))}</span></div>
+        <div style="font-size:10px;color:var(--muted)">(USD $${priceUsd.toFixed(2)})</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openImportPreview(index) {
+  const p = lastSearchResults[index];
+  if (!p) return;
+  const priceUsd = parseFloat(p.price) || 0;
+  const priceCop = Math.round(priceUsd * USD_TO_COP);
+  document.getElementById('prevImage').querySelector('img').src = p.image || '';
+  document.getElementById('prevName').value = p.title || '';
+  document.getElementById('prevPrice').value = priceCop || '';
+  document.getElementById('prevOldPrice').value = priceCop ? Math.round(priceCop * 1.35) : '';
+  document.getElementById('prevImageInput').value = p.image || '';
+  document.getElementById('prevCategory').value = '';
+  document.getElementById('prevProvider').value = currentPlatform === 'aliexpress' ? 'AliExpress' : currentPlatform === 'amazon' ? 'Amazon' : '';
+  document.getElementById('prevDescription').value = p.description || p.title || '';
+  document.getElementById('prevSourceUrl').value = p.url || '';
+  document.getElementById('importPreviewModal').classList.add('open');
+}
+
+document.getElementById('prevCancel')?.addEventListener('click', () => { document.getElementById('importPreviewModal').classList.remove('open'); });
+document.getElementById('importPreviewBg')?.addEventListener('click', () => { document.getElementById('importPreviewModal').classList.remove('open'); });
+
+document.getElementById('prevSave')?.addEventListener('click', async () => {
+  const name = document.getElementById('prevName').value.trim();
+  const price = Number(document.getElementById('prevPrice').value);
   if (!name || !price) return showToast('Nombre y precio son obligatorios');
-  const product = {
-    name,
-    price,
-    old: document.getElementById('importOldPrice').value ? Number(document.getElementById('importOldPrice').value) : Math.round(price * 1.35),
-    category: document.getElementById('importCategory').value || 'Otros',
-    provider: document.getElementById('importProvider').value || '',
-    image: document.getElementById('importImage').value.trim() || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=82',
-    description: document.getElementById('importDescription').value.trim() || 'Producto importado.',
-    sourceUrl: document.getElementById('importSourceUrl').value.trim() || '',
-    rating: 4.7, sold: 0, tag: 'Nuevo',
-  };
   await fetch(API + '/api/products', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(product),
+    body: JSON.stringify({
+      name, price,
+      old: document.getElementById('prevOldPrice').value ? Number(document.getElementById('prevOldPrice').value) : Math.round(price * 1.35),
+      category: document.getElementById('prevCategory').value || 'Otros',
+      provider: document.getElementById('prevProvider').value || '',
+      image: document.getElementById('prevImageInput').value.trim() || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=82',
+      description: document.getElementById('prevDescription').value.trim() || 'Producto importado.',
+      sourceUrl: document.getElementById('prevSourceUrl').value.trim() || '',
+      rating: 4.7, sold: 0, tag: 'Nuevo',
+    }),
   });
+  document.getElementById('importPreviewModal').classList.remove('open');
   await loadProducts();
   renderAll();
-  document.getElementById('importResult').style.display = 'none';
-  document.getElementById('importPlatformBadge').style.display = 'none';
-  document.getElementById('importUrl').value = '';
-  showToast('Producto importado exitosamente');
+  showToast('Producto importado a tu tienda');
 });
 
-document.getElementById('importClearBtn').addEventListener('click', function () {
-  document.getElementById('importUrl').value = '';
-  document.getElementById('importResult').style.display = 'none';
-  document.getElementById('importPlatformBadge').style.display = 'none';
-  document.getElementById('importName').value = '';
-  document.getElementById('importPrice').value = '';
-  document.getElementById('importOldPrice').value = '';
-  document.getElementById('importImage').value = '';
-  document.getElementById('importDescription').value = '';
-  document.getElementById('importCategory').value = '';
-  document.getElementById('importProvider').value = '';
-  document.getElementById('importSourceUrl').value = '';
+document.getElementById('aliSearchBtn')?.addEventListener('click', async () => {
+  const keywords = document.getElementById('aliKeywords').value.trim();
+  if (!keywords) return;
+  document.getElementById('importLoading').style.display = '';
+  document.getElementById('importError').style.display = 'none';
+  document.getElementById('importResults').style.display = 'none';
+  currentPage = 1;
+  try {
+    const res = await fetch(API + '/api/search-aliexpress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keywords, page: 1 }) });
+    const data = await res.json();
+    document.getElementById('importLoading').style.display = 'none';
+    if (data.error) { document.getElementById('importError').style.display = ''; document.getElementById('importError').textContent = '⚠️ ' + data.error; return; }
+    renderSearchResults(data.products, data.total);
+  } catch (e) { document.getElementById('importLoading').style.display = 'none'; document.getElementById('importError').style.display = ''; document.getElementById('importError').textContent = 'Error: ' + e.message; }
 });
 
-document.getElementById('importUrl').addEventListener('keydown', function (e) {
-  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('importBtn').click(); }
+document.getElementById('aliKeywords')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('aliSearchBtn').click(); });
+
+document.getElementById('amzSearchBtn')?.addEventListener('click', async () => {
+  const keywords = document.getElementById('amzKeywords').value.trim();
+  if (!keywords) return;
+  document.getElementById('importLoading').style.display = '';
+  document.getElementById('importError').style.display = 'none';
+  try {
+    const res = await fetch(API + '/api/search-amazon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keywords }) });
+    const data = await res.json();
+    document.getElementById('importLoading').style.display = 'none';
+    if (data.error) { document.getElementById('importError').style.display = ''; document.getElementById('importError').textContent = '⚠️ ' + data.error; return; }
+    renderSearchResults(data.products, data.total);
+  } catch (e) { document.getElementById('importLoading').style.display = 'none'; }
+});
+
+document.getElementById('amzKeywords')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('amzSearchBtn').click(); });
+
+document.getElementById('importUrlBtn')?.addEventListener('click', async () => {
+  const url = document.getElementById('importUrl').value.trim();
+  if (!url) return;
+  document.getElementById('importLoading').style.display = '';
+  document.getElementById('importError').style.display = 'none';
+  try {
+    const res = await fetch(API + '/api/import-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+    const data = await res.json();
+    document.getElementById('importLoading').style.display = 'none';
+    if (!data.title && !data.image) { document.getElementById('importError').style.display = ''; document.getElementById('importError').textContent = 'No se pudo extraer datos de esta URL'; return; }
+    lastSearchResults = [{ id: Date.now(), title: data.title, image: data.image, price: data.price || '0', rating: '4.7', orders: 0, url, description: data.description, shipping: '' }];
+    openImportPreview(0);
+  } catch (e) { document.getElementById('importLoading').style.display = 'none'; }
+});
+
+document.getElementById('aliPrevBtn')?.addEventListener('click', async () => {
+  if (currentPage <= 1) return;
+  currentPage--;
+  const keywords = document.getElementById('aliKeywords').value.trim();
+  document.getElementById('importLoading').style.display = '';
+  const res = await fetch(API + '/api/search-aliexpress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keywords, page: currentPage }) });
+  const data = await res.json();
+  document.getElementById('importLoading').style.display = 'none';
+  renderSearchResults(data.products, data.total);
+});
+
+document.getElementById('aliNextBtn')?.addEventListener('click', async () => {
+  currentPage++;
+  const keywords = document.getElementById('aliKeywords').value.trim();
+  document.getElementById('importLoading').style.display = '';
+  const res = await fetch(API + '/api/search-aliexpress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keywords, page: currentPage }) });
+  const data = await res.json();
+  document.getElementById('importLoading').style.display = 'none';
+  renderSearchResults(data.products, data.total);
 });
 
 async function loadFlashSale() {

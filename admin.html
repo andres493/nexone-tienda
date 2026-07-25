@@ -195,52 +195,74 @@
 
     <div class="section-page" id="page-import">
       <div class="admin-header">
-        <h1>🔗 Importar producto</h1>
-        <p>Pega una URL de Temu, AliExpress, Amazon u otra plataforma</p>
+        <h1>🔗 Importar productos</h1>
+        <p>Busca productos en plataformas internacionales e importalos a tu tienda</p>
       </div>
-      <div class="panel" style="padding:24px">
-        <div style="display:flex;gap:10px;margin-bottom:20px">
-          <input id="importUrl" type="url" placeholder="https://www.aliexpress.com/item/..." style="flex:1;border:2px solid var(--line);border-radius:var(--radius-sm);padding:12px 16px;font-size:14px;background:var(--panel-soft)">
-          <button class="primary" id="importBtn" style="width:auto;padding:12px 24px;white-space:nowrap">🔍 Extraer datos</button>
+      <div class="panel" style="padding:20px">
+        <div id="apiStatus" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap"></div>
+        <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--line);padding-bottom:0">
+          <button class="import-tab active" data-platform="aliexpress" style="border:0;background:none;padding:10px 18px;font-weight:800;font-size:13px;color:var(--brand);cursor:pointer;border-bottom:3px solid var(--brand);margin-bottom:-2px">🟠 AliExpress</button>
+          <button class="import-tab" data-platform="amazon" style="border:0;background:none;padding:10px 18px;font-weight:800;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px">🟡 Amazon</button>
+          <button class="import-tab" data-platform="url" style="border:0;background:none;padding:10px 18px;font-weight:800;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px">🌐 Por URL</button>
         </div>
-        <div id="importPlatformBadge" style="display:none;margin-bottom:16px"></div>
-        <div id="importLoading" style="display:none;text-align:center;padding:20px;color:var(--muted);font-size:13px">
-          <div style="font-size:24px;margin-bottom:8px">⏳</div>
-          Extrayendo datos del producto...
+        <div id="searchArea-aliexpress">
+          <div style="display:flex;gap:10px">
+            <input id="aliKeywords" type="search" placeholder="Buscar productos en AliExpress (ej: wireless earbuds)" style="flex:1;border:2px solid var(--line);border-radius:var(--radius-sm);padding:12px 16px;font-size:14px;background:var(--panel-soft)">
+            <button class="primary" id="aliSearchBtn" style="width:auto;padding:12px 24px">🔍 Buscar</button>
+          </div>
+          <p style="margin:8px 0 0;font-size:11px;color:var(--muted)">Precios en USD convertidos automaticamente a COP ($4.200/$)</p>
         </div>
-        <div id="importResult" style="display:none">
-          <div style="display:grid;grid-template-columns:160px 1fr;gap:20px;align-items:start">
-            <div>
-              <div id="importPreview" style="width:160px;height:160px;border-radius:var(--radius-sm);overflow:hidden;border:2px solid var(--line);background:var(--panel-soft)"><img style="width:100%;height:100%;object-fit:cover"></div>
-              <input type="file" id="importImageFile" accept="image/*" style="margin-top:8px;font-size:12px;border:2px solid var(--line);border-radius:var(--radius-sm);padding:6px;width:100%">
-            </div>
-            <div class="admin-form" style="max-width:100%">
-              <input id="importName" required placeholder="Nombre del producto">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                <input id="importPrice" required type="number" min="1" placeholder="Precio de venta COP">
-                <input id="importOldPrice" type="number" min="0" placeholder="Precio original COP (opcional)">
-              </div>
-              <input id="importImage" placeholder="URL de imagen">
-              <input id="importCategory" list="importCatList" placeholder="Categoria">
-              <datalist id="importCatList"></datalist>
-              <input id="importProvider" list="importProviderList" placeholder="Plataforma / Proveedor">
-              <datalist id="importProviderList">
-                <option value="Temu">
-                <option value="AliExpress">
-                <option value="Amazon">
-                <option value="Shopee">
-                <option value="Shein">
-                <option value="MercadoLibre">
-                <option value="Otro">
-              </datalist>
-              <textarea id="importDescription" placeholder="Descripcion del producto"></textarea>
-              <input id="importSourceUrl" placeholder="URL fuente (para reordenar)">
-              <div style="display:flex;gap:10px;margin-top:8px">
-                <button class="primary" id="importSaveBtn" style="flex:1">✅ Importar producto</button>
-                <button class="secondary" id="importClearBtn">🗑️ Limpiar</button>
-              </div>
+        <div id="searchArea-amazon" style="display:none">
+          <div style="display:flex;gap:10px">
+            <input id="amzKeywords" type="search" placeholder="Buscar productos en Amazon.com" style="flex:1;border:2px solid var(--line);border-radius:var(--radius-sm);padding:12px 16px;font-size:14px;background:var(--panel-soft)">
+            <button class="primary" id="amzSearchBtn" style="width:auto;padding:12px 24px">🔍 Buscar</button>
+          </div>
+          <p id="amzNote" style="margin:8px 0 0;font-size:11px;color:var(--muted)"></p>
+        </div>
+        <div id="searchArea-url" style="display:none">
+          <div style="display:flex;gap:10px">
+            <input id="importUrl" type="url" placeholder="Pega la URL del producto (Temu, AliExpress, Amazon, etc.)" style="flex:1;border:2px solid var(--line);border-radius:var(--radius-sm);padding:12px 16px;font-size:14px;background:var(--panel-soft)">
+            <button class="primary" id="importUrlBtn" style="width:auto;padding:12px 24px">🔍 Extraer</button>
+          </div>
+        </div>
+        <div id="importLoading" style="display:none;text-align:center;padding:30px;color:var(--muted)"><div style="font-size:28px;margin-bottom:8px">⏳</div>Buscando productos...</div>
+        <div id="importError" style="display:none;padding:12px 16px;background:#fee2e2;border-radius:var(--radius-sm);color:#dc2626;font-size:13px;font-weight:600;margin-top:12px"></div>
+        <div id="importResults" style="display:none;margin-top:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <span id="importResultsCount" style="font-weight:800;font-size:14px"></span>
+            <div style="display:flex;gap:4px">
+              <button class="secondary" id="aliPrevBtn" style="padding:6px 12px;font-size:12px">← Anterior</button>
+              <button class="secondary" id="aliNextBtn" style="padding:6px 12px;font-size:12px">Siguiente →</button>
             </div>
           </div>
+          <div id="importResultsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="importPreviewModal">
+      <div class="modal-bg" id="importPreviewBg"></div>
+      <div class="modal-content" style="max-width:560px">
+        <h2>📥 Importar producto</h2>
+        <div style="display:grid;grid-template-columns:180px 1fr;gap:16px">
+          <div><div id="prevImage" style="width:180px;height:180px;border-radius:var(--radius-sm);overflow:hidden;border:2px solid var(--line);background:var(--panel-soft)"><img style="width:100%;height:100%;object-fit:cover"></div></div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <input id="prevName" placeholder="Nombre" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <input id="prevPrice" type="number" placeholder="Precio COP" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px">
+              <input id="prevOldPrice" type="number" placeholder="Precio anterior" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px">
+            </div>
+            <input id="prevImageInput" placeholder="URL de imagen" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px">
+            <input id="prevCategory" list="prevCatList" placeholder="Categoria" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px">
+            <datalist id="prevCatList"></datalist>
+            <input id="prevProvider" placeholder="Proveedor" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px">
+            <textarea id="prevDescription" placeholder="Descripcion" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;min-height:50px;resize:vertical"></textarea>
+            <input id="prevSourceUrl" placeholder="URL fuente" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px">
+          </div>
+        </div>
+        <div class="modal-actions" style="margin-top:16px">
+          <button class="secondary" id="prevCancel">Cancelar</button>
+          <button class="primary" id="prevSave">✅ Importar a mi tienda</button>
         </div>
       </div>
     </div>
