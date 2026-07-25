@@ -107,6 +107,7 @@ function renderProducts() {
         <div class="product-media">
           <img src="${p.image}" alt="${p.name}" loading="lazy">
           ${disc > 0 ? `<span class="prod-badge disc">-${disc}%</span>` : ''}
+          ${p.provider ? `<span class="prod-provider">${p.provider}</span>` : ''}
         </div>
         <div class="prod-body">
           <h3>${p.name}</h3>

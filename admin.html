@@ -123,7 +123,7 @@
       </div>
       <div class="panel table-panel">
         <table class="admin-table">
-          <thead><tr><th>ID</th><th>Nombre</th><th>Categoria</th><th>Precio</th><th>Vendidos</th><th>Rating</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>ID</th><th>Nombre</th><th>Categoria</th><th>Proveedor</th><th>Precio</th><th>Vendidos</th><th>Rating</th><th>Acciones</th></tr></thead>
           <tbody id="productsTable"></tbody>
         </table>
       </div>
@@ -172,6 +172,16 @@
             <option value="Musica">
             <option value="Fotografia">
             <option value="Otros">
+          </datalist>
+          <input id="newProvider" list="providerList" placeholder="Plataforma / Proveedor">
+          <datalist id="providerList">
+            <option value="Temu">
+            <option value="AliExpress">
+            <option value="Amazon">
+            <option value="Shopee">
+            <option value="Shein">
+            <option value="MercadoLibre">
+            <option value="Otro">
           </datalist>
           <input type="file" id="newImageFile" accept="image/*" style="border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px;background:var(--panel-soft)">
           <input id="newImage" placeholder="O pega URL de imagen">
@@ -240,6 +250,16 @@
         <option value="Musica">
         <option value="Fotografia">
         <option value="Otros">
+      </datalist>
+      <input id="editProvider" list="editProviderList" placeholder="Plataforma / Proveedor">
+      <datalist id="editProviderList">
+        <option value="Temu">
+        <option value="AliExpress">
+        <option value="Amazon">
+        <option value="Shopee">
+        <option value="Shein">
+        <option value="MercadoLibre">
+        <option value="Otro">
       </datalist>
       <input type="file" id="editImageFile" accept="image/*" style="border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px;background:var(--panel-soft)">
       <input id="editImage" placeholder="O pega URL de imagen">

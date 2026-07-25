@@ -173,6 +173,7 @@ function renderProducts() {
         <strong>${p.name}</strong>
       </td>
       <td>${p.category}</td>
+      <td>${p.provider ? '<span class="provider-badge">' + p.provider + '</span>' : '-'}</td>
       <td>${money.format(p.price)}</td>
       <td>${p.sold.toLocaleString('es-ES')}</td>
       <td>${p.rating.toFixed(1)}</td>
@@ -181,7 +182,7 @@ function renderProducts() {
         <button class="btn-icon delete" onclick="deleteProduct(${p.id})">🗑️</button>
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="7" class="empty">No hay productos</td></tr>';
+  `).join('') || '<tr><td colspan="8" class="empty">No hay productos</td></tr>';
 }
 
 function renderOrders() {
@@ -225,6 +226,7 @@ function editProduct(id) {
   document.getElementById('editCategory').value = p.category;
   document.getElementById('editImage').value = p.image || '';
   document.getElementById('editDescription').value = p.description || '';
+  document.getElementById('editProvider').value = p.provider || '';
   document.getElementById('editModal').classList.add('open');
 }
 
@@ -258,6 +260,7 @@ document.getElementById('editForm').addEventListener('submit', async function (e
     price: Number(document.getElementById('editPrice').value),
     old: document.getElementById('editOldPrice').value ? Number(document.getElementById('editOldPrice').value) : Math.round(Number(document.getElementById('editPrice').value) * 1.35),
     category: document.getElementById('editCategory').value,
+    provider: document.getElementById('editProvider').value.trim() || '',
     image: document.getElementById('editImage').value.trim() || undefined,
     description: document.getElementById('editDescription').value.trim() || undefined,
   };
@@ -305,12 +308,13 @@ document.getElementById('productForm').addEventListener('submit', async function
   const price = Number(document.getElementById('newPrice').value);
   const oldPrice = document.getElementById('newOldPrice').value ? Number(document.getElementById('newOldPrice').value) : Math.round(price * 1.35);
   const category = document.getElementById('newCategory').value;
+  const provider = document.getElementById('newProvider').value.trim() || '';
   const image = document.getElementById('newImage').value.trim() || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=82';
   const description = document.getElementById('newDescription').value.trim() || 'Producto nuevo.';
   await fetch(API + '/api/products', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, price, old: oldPrice, category, image, description, rating: 4.7, sold: 0, tag: 'Nuevo' }),
+    body: JSON.stringify({ name, price, old: oldPrice, category, provider, image, description, rating: 4.7, sold: 0, tag: 'Nuevo' }),
   });
   this.reset();
   document.getElementById('newImagePreview').style.display = 'none';
