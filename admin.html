@@ -79,6 +79,7 @@
       <button data-page="products">📦 Productos</button>
       <button data-page="orders">📋 Pedidos</button>
       <button data-page="add">➕ Nuevo producto</button>
+      <button data-page="import">🔗 Importar producto</button>
       <button data-page="flashsale">🔥 Flash Sale</button>
       <button onclick="window.location.href='index.html'" style="margin-top:auto;color:#25d366">🏪 Ir a tienda</button>
     </nav>
@@ -189,6 +190,58 @@
           <textarea id="newDescription" placeholder="Descripcion del producto"></textarea>
           <button class="primary" type="submit">Publicar producto</button>
         </form>
+      </div>
+    </div>
+
+    <div class="section-page" id="page-import">
+      <div class="admin-header">
+        <h1>🔗 Importar producto</h1>
+        <p>Pega una URL de Temu, AliExpress, Amazon u otra plataforma</p>
+      </div>
+      <div class="panel" style="padding:24px">
+        <div style="display:flex;gap:10px;margin-bottom:20px">
+          <input id="importUrl" type="url" placeholder="https://www.aliexpress.com/item/..." style="flex:1;border:2px solid var(--line);border-radius:var(--radius-sm);padding:12px 16px;font-size:14px;background:var(--panel-soft)">
+          <button class="primary" id="importBtn" style="width:auto;padding:12px 24px;white-space:nowrap">🔍 Extraer datos</button>
+        </div>
+        <div id="importPlatformBadge" style="display:none;margin-bottom:16px"></div>
+        <div id="importLoading" style="display:none;text-align:center;padding:20px;color:var(--muted);font-size:13px">
+          <div style="font-size:24px;margin-bottom:8px">⏳</div>
+          Extrayendo datos del producto...
+        </div>
+        <div id="importResult" style="display:none">
+          <div style="display:grid;grid-template-columns:160px 1fr;gap:20px;align-items:start">
+            <div>
+              <div id="importPreview" style="width:160px;height:160px;border-radius:var(--radius-sm);overflow:hidden;border:2px solid var(--line);background:var(--panel-soft)"><img style="width:100%;height:100%;object-fit:cover"></div>
+              <input type="file" id="importImageFile" accept="image/*" style="margin-top:8px;font-size:12px;border:2px solid var(--line);border-radius:var(--radius-sm);padding:6px;width:100%">
+            </div>
+            <div class="admin-form" style="max-width:100%">
+              <input id="importName" required placeholder="Nombre del producto">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <input id="importPrice" required type="number" min="1" placeholder="Precio de venta COP">
+                <input id="importOldPrice" type="number" min="0" placeholder="Precio original COP (opcional)">
+              </div>
+              <input id="importImage" placeholder="URL de imagen">
+              <input id="importCategory" list="importCatList" placeholder="Categoria">
+              <datalist id="importCatList"></datalist>
+              <input id="importProvider" list="importProviderList" placeholder="Plataforma / Proveedor">
+              <datalist id="importProviderList">
+                <option value="Temu">
+                <option value="AliExpress">
+                <option value="Amazon">
+                <option value="Shopee">
+                <option value="Shein">
+                <option value="MercadoLibre">
+                <option value="Otro">
+              </datalist>
+              <textarea id="importDescription" placeholder="Descripcion del producto"></textarea>
+              <input id="importSourceUrl" placeholder="URL fuente (para reordenar)">
+              <div style="display:flex;gap:10px;margin-top:8px">
+                <button class="primary" id="importSaveBtn" style="flex:1">✅ Importar producto</button>
+                <button class="secondary" id="importClearBtn">🗑️ Limpiar</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

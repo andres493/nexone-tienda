@@ -127,6 +127,88 @@ app.put('/api/flashsale', (req, res) => {
   res.json(db.flashSale);
 });
 
+const https = require('https');
+const http = require('http');
+
+function fetchUrl(url) {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith('https') ? https : http;
+    const req = mod.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'en-US,en;q=0.9,es;q=0.8',
+      },
+      timeout: 10000,
+    }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return fetchUrl(res.headers.location).then(resolve).catch(reject);
+      }
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => resolve(data));
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout')); });
+  });
+}
+
+function extractMeta(html, url) {
+  const get = (prop) => {
+    const patterns = [
+      new RegExp(`<meta[^>]*property=["']${prop}["'][^>]*content=["']([^"']+)["']`, 'i'),
+      new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*property=["']${prop}["']`, 'i'),
+      new RegExp(`<meta[^>]*name=["']${prop}["'][^>]*content=["']([^"']+)["']`, 'i'),
+      new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*name=["']${prop}["']`, 'i'),
+    ];
+    for (const p of patterns) {
+      const m = html.match(p);
+      if (m) return m[1];
+    }
+    return '';
+  };
+
+  const title = get('og:title') || get('twitter:title') || (html.match(/<title[^>]*>([^<]+)<\/title>/i) || [])[1] || '';
+  const image = get('og:image') || get('twitter:image') || '';
+  const description = get('og:description') || get('twitter:description') || get('description') || '';
+
+  let price = '';
+  const pricePatterns = [
+    /"price"\s*:\s*"?(\d+[\.,]?\d*)/i,
+    /"salePrice"\s*:\s*"?(\d+[\.,]?\d*)/i,
+    /"currentPrice"\s*:\s*"?(\d+[\.,]?\d*)/i,
+    /class=["'][^"']*price[^"']*["'][^>]*>\s*\$?\s*(\d+[\.,]?\d*)/i,
+    /data-price=["'](\d+[\.,]?\d*)/i,
+    /price["']\s*:\s*["']?\$?\s*(\d+[\.,]?\d*)/i,
+  ];
+  for (const p of pricePatterns) {
+    const m = html.match(p);
+    if (m) { price = m[1].replace(',', '.'); break; }
+  }
+
+  let platform = 'Otro';
+  if (/temu\.com/i.test(url)) platform = 'Temu';
+  else if (/aliexpress/i.test(url)) platform = 'AliExpress';
+  else if (/amazon\.(com|co\.uk|de|fr|es|it|ca|com\.au|co\.jp)/i.test(url)) platform = 'Amazon';
+  else if (/shopee\./i.test(url)) platform = 'Shopee';
+  else if (/shein\.com/i.test(url)) platform = 'Shein';
+  else if (/mercadolibre\./i.test(url)) platform = 'MercadoLibre';
+
+  return { title: title.trim(), image: image.trim(), description: description.trim(), price, platform };
+}
+
+app.post('/api/import-url', async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: 'URL required' });
+  try {
+    const html = await fetchUrl(url);
+    const data = extractMeta(html, url);
+    res.json(data);
+  } catch (e) {
+    res.json({ title: '', image: '', description: '', price: '', platform: 'Otro', error: e.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`NEXONE server running at http://localhost:${PORT}`);
 });

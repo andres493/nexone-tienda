@@ -335,6 +335,134 @@ document.querySelectorAll('.admin-nav button[data-page]').forEach(btn => {
 
 let flashSale = { enabled: false };
 
+function renderImportCategoryList() {
+  const cats = [...new Set(getProducts().map(p => p.category))];
+  const defaultCats = ['Tecnologia','Belleza','Hogar','Moda','Fitness','Deportes','Mascotas','Bebes','Juguetes','Herramientas','Salud','Alimentos','Automotriz','Oficina','Jardin','Musica','Fotografia','Otros'];
+  const allCats = [...new Set([...cats, ...defaultCats])];
+  const dl = document.getElementById('importCatList');
+  if (dl) dl.innerHTML = allCats.map(c => `<option value="${c}">`).join('');
+}
+
+const platformColors = {
+  'Temu': '#fb7701', 'AliExpress': '#e43225', 'Amazon': '#ff9900',
+  'Shopee': '#ee4d2d', 'Shein': '#000', 'MercadoLibre': '#ffe600', 'Otro': '#64748b'
+};
+
+function detectPlatform(url) {
+  if (/temu\.com/i.test(url)) return 'Temu';
+  if (/aliexpress/i.test(url)) return 'AliExpress';
+  if (/amazon\./i.test(url)) return 'Amazon';
+  if (/shopee\./i.test(url)) return 'Shopee';
+  if (/shein\.com/i.test(url)) return 'Shein';
+  if (/mercadolibre\./i.test(url)) return 'MercadoLibre';
+  return 'Otro';
+}
+
+function showPlatformBadge(platform) {
+  const el = document.getElementById('importPlatformBadge');
+  const color = platformColors[platform] || '#64748b';
+  el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;font-size:12px;font-weight:800;color:#fff;background:${color}">${platform}</span>`;
+  el.style.display = 'block';
+}
+
+document.getElementById('importBtn').addEventListener('click', async function () {
+  const url = document.getElementById('importUrl').value.trim();
+  if (!url) return;
+  const platform = detectPlatform(url);
+  showPlatformBadge(platform);
+  document.getElementById('importLoading').style.display = 'block';
+  document.getElementById('importResult').style.display = 'none';
+  this.disabled = true;
+  try {
+    const res = await fetch(API + '/api/import-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+    document.getElementById('importName').value = data.title || '';
+    document.getElementById('importImage').value = data.image || '';
+    document.getElementById('importDescription').value = data.description || '';
+    document.getElementById('importProvider').value = platform;
+    document.getElementById('importSourceUrl').value = url;
+    if (data.price) {
+      const usdPrice = parseFloat(data.price);
+      const copPrice = platform === 'Amazon' ? Math.round(usdPrice * 4200) : Math.round(usdPrice * 4200);
+      document.getElementById('importPrice').value = copPrice || '';
+      document.getElementById('importOldPrice').value = copPrice ? Math.round(copPrice * 1.35) : '';
+    }
+    if (data.image) {
+      const preview = document.getElementById('importPreview');
+      preview.style.display = 'block';
+      preview.querySelector('img').src = data.image;
+    }
+    document.getElementById('importResult').style.display = 'block';
+  } catch {
+    document.getElementById('importResult').style.display = 'block';
+  }
+  document.getElementById('importLoading').style.display = 'none';
+  this.disabled = false;
+});
+
+document.getElementById('importImageFile')?.addEventListener('change', function () {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    document.getElementById('importImage').value = e.target.result;
+    const preview = document.getElementById('importPreview');
+    preview.style.display = 'block';
+    preview.querySelector('img').src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('importSaveBtn').addEventListener('click', async function () {
+  const name = document.getElementById('importName').value.trim();
+  const price = Number(document.getElementById('importPrice').value);
+  if (!name || !price) return showToast('Nombre y precio son obligatorios');
+  const product = {
+    name,
+    price,
+    old: document.getElementById('importOldPrice').value ? Number(document.getElementById('importOldPrice').value) : Math.round(price * 1.35),
+    category: document.getElementById('importCategory').value || 'Otros',
+    provider: document.getElementById('importProvider').value || '',
+    image: document.getElementById('importImage').value.trim() || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=82',
+    description: document.getElementById('importDescription').value.trim() || 'Producto importado.',
+    sourceUrl: document.getElementById('importSourceUrl').value.trim() || '',
+    rating: 4.7, sold: 0, tag: 'Nuevo',
+  };
+  await fetch(API + '/api/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(product),
+  });
+  await loadProducts();
+  renderAll();
+  document.getElementById('importResult').style.display = 'none';
+  document.getElementById('importPlatformBadge').style.display = 'none';
+  document.getElementById('importUrl').value = '';
+  showToast('Producto importado exitosamente');
+});
+
+document.getElementById('importClearBtn').addEventListener('click', function () {
+  document.getElementById('importUrl').value = '';
+  document.getElementById('importResult').style.display = 'none';
+  document.getElementById('importPlatformBadge').style.display = 'none';
+  document.getElementById('importName').value = '';
+  document.getElementById('importPrice').value = '';
+  document.getElementById('importOldPrice').value = '';
+  document.getElementById('importImage').value = '';
+  document.getElementById('importDescription').value = '';
+  document.getElementById('importCategory').value = '';
+  document.getElementById('importProvider').value = '';
+  document.getElementById('importSourceUrl').value = '';
+});
+
+document.getElementById('importUrl').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('importBtn').click(); }
+});
+
 async function loadFlashSale() {
   try {
     const res = await fetch(API + '/api/flashsale');
@@ -382,6 +510,7 @@ function renderAll() {
   renderProducts();
   renderOrders();
   renderCategoryLists();
+  renderImportCategoryList();
 }
 
 function renderCategoryLists() {
@@ -411,6 +540,7 @@ async function init() {
   await Promise.all([loadProducts(), loadOrders(), loadFlashSale()]);
   renderAll();
   renderFlashSaleForm();
+  renderImportCategoryList();
   connectSSE();
 }
 
