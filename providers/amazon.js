@@ -22,7 +22,7 @@ class AmazonProvider extends ProviderAdapter {
       Keywords: keywords || category || '',
       SearchIndex: 'All',
       ItemCount: Math.min(pageSize, this.maxPageSize),
-      Resources: ['Images.Primary.Medium', 'ItemInfo.Title', 'Offers.Listings.Price', 'CustomerReviews.Count', 'CustomerReviews.StarRating'],
+      Resources: ['Images.Primary.Medium', 'ItemInfo.Title', 'Offers.Listings.Price', 'Offers.Listings.DeliveryInfo.IsAmazonFulfilled', 'CustomerReviews.Count', 'CustomerReviews.StarRating', 'BrowseNodeInfo.BrowseNodes'],
     };
     const data = await amazonPaapi.SearchItems(commonParameters, requestParameters);
     const items = data?.SearchResult?.Items || [];
@@ -45,7 +45,7 @@ class AmazonProvider extends ProviderAdapter {
     };
     const data = await amazonPaapi.GetItems(commonParameters, {
       ItemIds: [asin],
-      Resources: ['Images.Primary.Large', 'ItemInfo.Title', 'ItemInfo.Features', 'Offers.Listings.Price', 'CustomerReviews.Count', 'CustomerReviews.StarRating'],
+      Resources: ['Images.Primary.Large', 'ItemInfo.Title', 'ItemInfo.Features', 'Offers.Listings.Price', 'Offers.Listings.DeliveryInfo', 'CustomerReviews.Count', 'CustomerReviews.StarRating'],
     });
     const item = data?.ItemsResult?.Items?.[0];
     if (!item) return null;
@@ -53,6 +53,9 @@ class AmazonProvider extends ProviderAdapter {
   }
 
   mapProduct(item) {
+    const isFba = item.Offers?.Listings?.[0]?.DeliveryInfo?.IsAmazonFulfilled || false;
+    const availability = item.Offers?.Listings?.[0]?.Availability?.Message || '';
+    const stockStatus = /unavailable|out of stock/i.test(availability) ? 'out_of_stock' : 'in_stock';
     return {
       id: item.ASIN || '',
       title: item.ItemInfo?.Title?.DisplayValue || '',
@@ -63,10 +66,18 @@ class AmazonProvider extends ProviderAdapter {
       rating: item.CustomerReviews?.StarRating?.Value || 0,
       orders: item.CustomerReviews?.TotalReviews || 0,
       url: item.DetailPageURL || '',
-      shipping: '',
+      shipping: isFba ? 'Envio Amazon (2-5 dias)' : '7-14 dias',
+      shippingDays: isFba ? '3' : '10',
+      shippingCost: '',
       storeName: 'Amazon',
-      category: '',
+      category: item.BrowseNodeInfo?.BrowseNodes?.[0]?.Name || '',
       description: (item.ItemInfo?.Features?.DisplayValues || []).join('. ') || item.ItemInfo?.Title?.DisplayValue || '',
+      currency: 'USD',
+      stockStatus: stockStatus,
+      minOrderQty: 1,
+      handlingTime: isFba ? '1' : '2-5',
+      sellerRating: 0,
+      sellerOrders: 0,
     };
   }
 }

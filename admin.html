@@ -244,29 +244,31 @@
     <div class="section-page" id="page-sync">
       <div class="admin-header">
         <h1>🔄 Sincronizar inventario</h1>
-        <p>Importa y sincroniza productos desde multiples proveedores</p>
+        <p>Importa y sincroniza productos desde proveedores de dropshipping</p>
       </div>
       <div id="syncProvidersStatus" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap"></div>
-      <div class="stats-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px">
+      <div class="stats-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px">
         <div class="stat-card"><b id="syncStatTotal">0</b><span>Productos sync</span></div>
-        <div class="stat-card"><b id="syncStatActive">0</b><span>Sincronizaciones activas</span></div>
-        <div class="stat-card"><b id="syncStatLast">-</b><span>Ultima sincronizacion</span></div>
+        <div class="stat-card"><b id="syncStatActive">0</b><span>Syncs activas</span></div>
+        <div class="stat-card"><b id="syncStatOutOfStock">0</b><span>Sin stock</span></div>
+        <div class="stat-card"><b id="syncStatLast">-</b><span>Ultima sync</span></div>
       </div>
       <div class="sync-grid">
         <div class="panel" style="padding:20px">
-          <h3 style="margin:0 0 14px;font-size:15px;font-weight:800">🚀 Nueva sincronizacion</h3>
+          <h3 style="margin:0 0 6px;font-size:15px;font-weight:800">🚀 Buscar productos dropshipping</h3>
+          <p style="margin:0 0 14px;font-size:11px;color:var(--muted)">Busca en AliExpress/Amazon y agrega productos con margen de ganancia automatico</p>
           <div class="admin-form" style="max-width:100%">
             <select id="syncProvider" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;background:var(--panel-soft);font-weight:700">
-              <option value="aliexpress">AliExpress</option>
-              <option value="amazon">Amazon</option>
-              <option value="alibaba">Alibaba</option>
+              <option value="aliexpress">AliExpress (Recomendado para dropshipping)</option>
+              <option value="amazon">Amazon (Retail arbitrage)</option>
+              <option value="alibaba">Alibaba (Mayoreo)</option>
             </select>
             <select id="syncSearchType" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;background:var(--panel-soft);font-weight:700">
               <option value="keywords">Palabras clave</option>
               <option value="category">Categoria</option>
               <option value="brand">Marca</option>
             </select>
-            <input id="syncSearchQuery" type="search" placeholder="Ej: wireless earbuds, electronica, Samsung">
+            <input id="syncSearchQuery" type="search" placeholder="Ej: wireless earbuds, phone case, led strip">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
               <div>
                 <label style="font-weight:700;font-size:12px;display:block;margin-bottom:4px">Margen de ganancia %</label>
@@ -277,19 +279,24 @@
                 <input id="syncMaxProducts" type="number" min="1" max="5000" value="500" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;background:var(--panel-soft)">
               </div>
             </div>
-            <button class="primary" id="syncStartBtn" style="width:100%">▶ Iniciar sincronizacion</button>
+            <button class="primary" id="syncStartBtn" style="width:100%">▶ Iniciar busqueda y sync</button>
           </div>
         </div>
         <div class="panel" style="padding:20px">
-          <h3 style="margin:0 0 14px;font-size:15px;font-weight:800">⚙ Configuracion automatica</h3>
+          <h3 style="margin:0 0 6px;font-size:15px;font-weight:800">⚙ Configuracion dropshipping</h3>
+          <p style="margin:0 0 14px;font-size:11px;color:var(--muted)">Configura la sincronizacion automatica de precios y stock</p>
           <div class="admin-form" style="max-width:100%">
             <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700">
               <input type="checkbox" id="syncAutoEnabled" style="width:18px;height:18px">
-              Sincronizacion automatica
+              Auto-sync (actualizar precios y stock cada X min)
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:700">
+              <input type="checkbox" id="syncAutoHide" style="width:18px;height:18px" checked>
+              Ocultar productos sin stock automaticamente
             </label>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
               <div>
-                <label style="font-weight:700;font-size:12px;display:block;margin-bottom:4px">Intervalo (minutos)</label>
+                <label style="font-weight:700;font-size:12px;display:block;margin-bottom:4px">Intervalo (min)</label>
                 <input id="syncInterval" type="number" min="5" max="1440" value="60" style="width:100%;border:2px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;background:var(--panel-soft)">
               </div>
               <div>

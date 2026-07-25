@@ -34,6 +34,7 @@ async function loadSyncConfig() {
     const res = await fetch(SYNC_API + '/config');
     const config = await res.json();
     document.getElementById('syncAutoEnabled').checked = config.autoSyncEnabled || false;
+    document.getElementById('syncAutoHide').checked = config.autoHideOutOfStock !== false;
     document.getElementById('syncInterval').value = config.autoSyncIntervalMinutes || 60;
     document.getElementById('syncDefaultMargin').value = config.defaultProfitMargin || 35;
     document.getElementById('syncMaxProducts').value = config.maxProductsPerSync || 500;
@@ -49,22 +50,29 @@ async function loadSyncJobs() {
   } catch {}
 }
 
-async function loadSyncLogs(jobId) {
+async function loadSyncStats() {
   try {
-    const url = jobId ? SYNC_API + '/logs?jobId=' + jobId : SYNC_API + '/logs?limit=50';
-    const res = await fetch(url);
+    const res = await fetch(SYNC_API + '/stats');
+    const stats = await res.json();
+    document.getElementById('syncStatTotal').textContent = (stats.synced || 0).toLocaleString('es-ES');
+    document.getElementById('syncStatOutOfStock').textContent = (stats.outOfStock || 0).toLocaleString('es-ES');
+    if (stats.lastSync) {
+      document.getElementById('syncStatLast').textContent = new Date(stats.lastSync).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    }
+  } catch {}
+}
+
+async function loadSyncLogs() {
+  try {
+    const res = await fetch(SYNC_API + '/logs?limit=50');
     const logs = await res.json();
     renderSyncLogs(logs);
   } catch {}
 }
 
 function updateSyncStats(jobs) {
-  const synced = jobs.filter(j => j.status === 'completed').reduce((s, j) => s + (j.stats?.imported || 0) + (j.stats?.updated || 0), 0);
   const active = jobs.filter(j => j.status === 'running' || j.status === 'queued').length;
-  const lastJob = jobs.find(j => j.completedAt);
-  document.getElementById('syncStatTotal').textContent = synced.toLocaleString('es-ES');
   document.getElementById('syncStatActive').textContent = active;
-  document.getElementById('syncStatLast').textContent = lastJob ? new Date(lastJob.completedAt).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
 }
 
 function renderSyncJobs(jobs) {
@@ -72,7 +80,8 @@ function renderSyncJobs(jobs) {
   if (!jobs.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin trabajos de sincronizacion</td></tr>'; return; }
   tbody.innerHTML = jobs.slice(0, 20).map(j => {
     const progressPct = j.progress?.total ? Math.round((j.progress.current / j.progress.total) * 100) : 0;
-    const statsText = j.stats ? `${j.stats.imported}+ ${j.stats.updated}~ ${j.stats.skipped}- ${j.stats.errors}!` : '-';
+    const s = j.stats || {};
+    const statsText = `${s.imported || 0}+ ${s.updated || 0}~ ${s.outOfStock || 0} sin stock`;
     const shortId = j.id.length > 18 ? j.id.slice(0, 18) + '...' : j.id;
     const queryShort = (j.searchQuery || '').length > 20 ? j.searchQuery.slice(0, 20) + '...' : (j.searchQuery || '-');
     let actions = '';
@@ -101,28 +110,22 @@ function renderSyncLogs(logs) {
 }
 
 async function syncPause(jobId) {
-  try {
-    await fetch(SYNC_API + '/pause/' + jobId, { method: 'POST' });
-    syncShowToast('Sincronizacion pausada');
-    await loadSyncJobs();
-  } catch {}
+  await fetch(SYNC_API + '/pause/' + jobId, { method: 'POST' });
+  syncShowToast('Sincronizacion pausada');
+  await loadSyncJobs();
 }
 
 async function syncResume(jobId) {
-  try {
-    await fetch(SYNC_API + '/resume/' + jobId, { method: 'POST' });
-    syncShowToast('Sincronizacion reanudada');
-    await loadSyncJobs();
-  } catch {}
+  await fetch(SYNC_API + '/resume/' + jobId, { method: 'POST' });
+  syncShowToast('Sincronizacion reanudada');
+  await loadSyncJobs();
 }
 
 async function syncCancel(jobId) {
   if (!confirm('¿Cancelar esta sincronizacion?')) return;
-  try {
-    await fetch(SYNC_API + '/cancel/' + jobId, { method: 'POST' });
-    syncShowToast('Sincronizacion cancelada');
-    await loadSyncJobs();
-  } catch {}
+  await fetch(SYNC_API + '/cancel/' + jobId, { method: 'POST' });
+  syncShowToast('Sincronizacion cancelada');
+  await loadSyncJobs();
 }
 
 document.getElementById('syncStartBtn')?.addEventListener('click', async () => {
@@ -147,7 +150,7 @@ document.getElementById('syncStartBtn')?.addEventListener('click', async () => {
     });
     const data = await res.json();
     if (data.error) return syncShowToast('Error: ' + data.error);
-    syncShowToast('Sincronizacion iniciada');
+    syncShowToast('Sincronizacion dropshipping iniciada');
     await loadSyncJobs();
     startSyncPolling();
   } catch (e) {
@@ -162,18 +165,19 @@ document.getElementById('syncSaveConfigBtn')?.addEventListener('click', async ()
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         autoSyncEnabled: document.getElementById('syncAutoEnabled').checked,
+        autoHideOutOfStock: document.getElementById('syncAutoHide').checked,
         autoSyncIntervalMinutes: Number(document.getElementById('syncInterval').value),
         defaultProfitMargin: Number(document.getElementById('syncDefaultMargin').value),
         maxProductsPerSync: Number(document.getElementById('syncMaxProducts').value),
       }),
     });
-    syncShowToast('Configuracion guardada');
+    syncShowToast('Configuracion dropshipping guardada');
   } catch (e) {
     syncShowToast('Error: ' + e.message);
   }
 });
 
-document.getElementById('syncRefreshBtn')?.addEventListener('click', () => loadSyncJobs());
+document.getElementById('syncRefreshBtn')?.addEventListener('click', () => { loadSyncJobs(); loadSyncStats(); });
 document.getElementById('syncLogsRefreshBtn')?.addEventListener('click', () => loadSyncLogs());
 
 document.getElementById('syncSearchQuery')?.addEventListener('keydown', (e) => {
@@ -185,6 +189,7 @@ function startSyncPolling() {
   syncPollTimer = setInterval(async () => {
     await loadSyncJobs();
     await loadSyncLogs();
+    await loadSyncStats();
     const res = await fetch(SYNC_API + '/status');
     const data = await res.json();
     if (data.activeSyncs === 0) {
@@ -198,6 +203,7 @@ function renderSyncPage() {
   loadSyncProviders();
   loadSyncConfig();
   loadSyncJobs();
+  loadSyncStats();
   loadSyncLogs();
 }
 
@@ -205,7 +211,7 @@ document.querySelectorAll('.admin-nav button[data-page]').forEach(btn => {
   btn.addEventListener('click', function () {
     if (this.dataset.page === 'sync') {
       renderSyncPage();
-      const res = fetch(SYNC_API + '/status').then(r => r.json()).then(data => {
+      fetch(SYNC_API + '/status').then(r => r.json()).then(data => {
         if (data.activeSyncs > 0) startSyncPolling();
       }).catch(() => {});
     }

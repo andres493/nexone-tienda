@@ -90,6 +90,8 @@ class AliExpressProvider extends ProviderAdapter {
   }
 
   mapProduct(p) {
+    const shippingDays = p.shipping?.days || '';
+    const stockQty = p.min_order_quantity || 1;
     return {
       id: p.product_id,
       title: p.product_title || '',
@@ -100,10 +102,18 @@ class AliExpressProvider extends ProviderAdapter {
       rating: p.average_star || '4.7',
       orders: p.total_tranpro || 0,
       url: p.product_detail_url || '',
-      shipping: p.shipping?.days ? p.shipping.days + ' dias' : '',
+      shipping: shippingDays ? shippingDays + ' dias' : '15-30 dias',
+      shippingDays: shippingDays || '20',
+      shippingCost: p.shipping?.cost || '',
       storeName: p.store_name || '',
       category: '',
       description: p.product_title || '',
+      currency: 'USD',
+      stockStatus: p.stock || 'in_stock',
+      minOrderQty: stockQty,
+      handlingTime: p.handling_time || '1-3',
+      sellerRating: p.store_rating || 0,
+      sellerOrders: p.store_tranpro || 0,
     };
   }
 }
