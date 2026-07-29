@@ -478,6 +478,7 @@ app.get('/api/aliexpress/callback', async (req, res) => {
   if (!code) return res.status(400).send('Missing authorization code');
   try {
     const token = await exchangeAliExpressCode(code);
+    console.log('AliExpress token response:', JSON.stringify(token).slice(0, 500));
     app.locals.aliExpressToken = token;
     global.__aliexpressToken = token;
     // Also persist to db.json for backup
@@ -490,9 +491,9 @@ app.get('/api/aliexpress/callback', async (req, res) => {
       <h2 style="color:#059669">✅ AliExpress conectado exitosamente</h2>
       <p>Ya puedes cerrar esta ventana y volver al panel admin.</p>
       <p style="margin-top:20px;font-size:12px;color:#6b7280">
-        <strong>Para que el token persista tras redeployos en Render, agrega esta variable de entorno:</strong><br>
+        <strong>Para persistir el token tras redeployos, agrega en Render:</strong><br>
         <code style="background:#f3f4f6;padding:8px;border-radius:4px;display:block;margin:8px 0;font-size:11px;word-break:break-all">
-        ALIEXPRESS_ACCESS_TOKEN=${token.access_token}</code>
+        ALIEXPRESS_ACCESS_TOKEN=${token.access_token || JSON.stringify(token)}</code>
       </p>
       <script>if(window.opener)window.opener.postMessage({type:'aliexpress-connected',connected:true},'*');setTimeout(()=>window.close(),2000)</script>
     </body></html>`;
