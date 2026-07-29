@@ -541,20 +541,41 @@ app.post('/api/aliexpress/disconnect', (req, res) => {
 function exchangeAliExpressCode(code) {
   return new Promise((resolve, reject) => {
     const redirectUri = process.env.ALIEXPRESS_REDIRECT_URI || `http://localhost:${PORT}/api/aliexpress/callback`;
-    const postData = `grant_type=authorization_code&client_id=${ALIEXPRESS_APP_KEY}&client_secret=${ALIEXPRESS_APP_SECRET}&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-    const req = https.request({
-      hostname: 'oauth.aliexpress.com', path: '/token', method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(postData) },
-    }, (resp) => {
-      let data = '';
-      resp.on('data', c => data += c);
-      resp.on('end', () => {
-        try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid token response: ' + data)); }
+    const hosts = ['oauth.aliexpress.com', 'auth.aliexpress.com'];
+    const bodies = [
+      `grant_type=authorization_code&client_id=${ALIEXPRESS_APP_KEY}&client_secret=${ALIEXPRESS_APP_SECRET}&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}`,
+      `grant_type=authorization_code&app_key=${ALIEXPRESS_APP_KEY}&app_secret=${ALIEXPRESS_APP_SECRET}&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}`,
+      `grant_type=authorization_code&client_id=${ALIEXPRESS_APP_KEY}&client_secret=${ALIEXPRESS_APP_SECRET}&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}&sp=ae`,
+    ];
+    let attempt = 0;
+    const total = hosts.length * bodies.length;
+    function tryNext() {
+      if (attempt >= total) return reject(new Error('All token exchange attempts failed'));
+      const hi = Math.floor(attempt / bodies.length);
+      const bi = attempt % bodies.length;
+      const host = hosts[hi];
+      const postData = bodies[bi];
+      attempt++;
+      const req = https.request({
+        hostname: host, path: '/token', method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(postData) },
+      }, (resp) => {
+        let data = '';
+        resp.on('data', c => data += c);
+        resp.on('end', () => {
+          try {
+            const j = JSON.parse(data);
+            if (j.access_token) return resolve(j);
+            console.log(`Token attempt ${attempt}: ${host} -`, data.slice(0, 200));
+            tryNext();
+          } catch { tryNext(); }
+        });
       });
-    });
-    req.on('error', reject);
-    req.write(postData);
-    req.end();
+      req.on('error', () => tryNext());
+      req.write(postData);
+      req.end();
+    }
+    tryNext();
   });
 }
 
