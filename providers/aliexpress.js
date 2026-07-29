@@ -13,6 +13,10 @@ class AliExpressProvider extends ProviderAdapter {
   get maxPageSize() { return 50; }
 
   _getToken() {
+    // Check env var first (persists across deploys)
+    if (process.env.ALIEXPRESS_ACCESS_TOKEN) {
+      return process.env.ALIEXPRESS_ACCESS_TOKEN;
+    }
     // Check in-memory token (set by OAuth callback)
     if (global.__aliexpressToken?.access_token) {
       const t = global.__aliexpressToken;

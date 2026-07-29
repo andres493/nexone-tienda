@@ -486,16 +486,27 @@ app.get('/api/aliexpress/callback', async (req, res) => {
       db.aliexpressAuth = { ...token, updatedAt: new Date().toISOString() };
       fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
     } catch {}
-    res.send(`<html><body><h2>AliExpress conectado exitosamente</h2><p>Ya puedes cerrar esta ventana.</p><script>
-      if (window.opener) window.opener.postMessage({ type: 'aliexpress-connected', connected: true }, '*');
-      setTimeout(() => window.close(), 1500);
-    </script></body></html>`);
+    const tokHtml = `<html><body style="font-family:sans-serif;padding:40px;max-width:600px;margin:auto">
+      <h2 style="color:#059669">✅ AliExpress conectado exitosamente</h2>
+      <p>Ya puedes cerrar esta ventana y volver al panel admin.</p>
+      <p style="margin-top:20px;font-size:12px;color:#6b7280">
+        <strong>Para que el token persista tras redeployos en Render, agrega esta variable de entorno:</strong><br>
+        <code style="background:#f3f4f6;padding:8px;border-radius:4px;display:block;margin:8px 0;font-size:11px;word-break:break-all">
+        ALIEXPRESS_ACCESS_TOKEN=${token.access_token}</code>
+      </p>
+      <script>if(window.opener)window.opener.postMessage({type:'aliexpress-connected',connected:true},'*');setTimeout(()=>window.close(),2000)</script>
+    </body></html>`;
+    res.send(tokHtml);
   } catch (e) {
     res.status(500).send('Error al conectar AliExpress: ' + e.message);
   }
 });
 
 app.get('/api/aliexpress/token-status', (req, res) => {
+  // Check env var first (persists across deploys)
+  if (process.env.ALIEXPRESS_ACCESS_TOKEN) {
+    return res.json({ connected: true, expired: false, envVar: true });
+  }
   const token = app.locals.aliExpressToken || global.__aliexpressToken;
   if (token && token.access_token) {
     const expired = token.expire_time && token.expire_time * 1000 < Date.now();
