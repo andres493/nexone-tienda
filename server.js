@@ -512,7 +512,10 @@ app.get('/api/aliexpress/callback', async (req, res) => {
     const db = readDB();
     db.aliexpressAuth = { ...token, updatedAt: new Date().toISOString() };
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-    res.send('<html><body><h2>AliExpress conectado exitosamente</h2><p>Ya puedes cerrar esta ventana y volver al panel admin.</p><script>setTimeout(()=>window.close(),2000)</script></body></html>');
+    res.send(`<html><body><h2>AliExpress conectado exitosamente</h2><p>Ya puedes cerrar esta ventana.</p><script>
+      if (window.opener) window.opener.postMessage({ type: 'aliexpress-connected', connected: true }, '*');
+      setTimeout(() => window.close(), 1500);
+    </script></body></html>`);
     if (app.locals.broadcast) app.locals.broadcast({ type: 'aliexpress-connected', data: token });
   } catch (e) {
     res.status(500).send('Error al conectar AliExpress: ' + e.message);

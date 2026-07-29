@@ -245,17 +245,13 @@ document.querySelectorAll('.admin-nav button[data-page]').forEach(btn => {
 
 document.getElementById('aliexpressConnectBtn')?.addEventListener('click', () => {
   window.open('/api/aliexpress/auth', '_blank', 'width=600,height=700');
-  // Poll for connection
-  const check = setInterval(async () => {
-    const res = await fetch('/api/aliexpress/token-status');
-    const data = await res.json();
-    if (data.connected) {
-      clearInterval(check);
-      checkAliExpressConnection();
-      syncShowToast('AliExpress conectado!');
-    }
-  }, 2000);
-  setTimeout(() => clearInterval(check), 120000);
+});
+
+window.addEventListener('message', (e) => {
+  if (e.data?.type === 'aliexpress-connected') {
+    checkAliExpressConnection();
+    syncShowToast('AliExpress conectado!');
+  }
 });
 
 document.getElementById('aliexpressDisconnectBtn')?.addEventListener('click', async () => {
