@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const https = require('https');
+const fs = require('fs');
+const path = require('path');
 const ProviderAdapter = require('./base');
 
 class AliExpressProvider extends ProviderAdapter {
@@ -10,18 +12,30 @@ class AliExpressProvider extends ProviderAdapter {
   get searchDelayMs() { return 500; }
   get maxPageSize() { return 50; }
 
+  _getToken() {
+    try {
+      const db = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'db.json'), 'utf8'));
+      const auth = db.aliexpressAuth;
+      if (!auth || !auth.access_token) return null;
+      if (auth.expire_time && auth.expire_time < Date.now()) return null;
+      return auth.access_token;
+    } catch { return null; }
+  }
+
   _sign(params, appSecret) {
     const sorted = Object.keys(params).sort().reduce((a, k) => { a[k] = params[k]; return a; }, {});
     const str = appSecret + Object.keys(sorted).map(k => k + sorted[k]).join('') + appSecret;
     return crypto.createHash('md5').update(str, 'utf8').digest('hex').toUpperCase();
   }
 
-  _request(method, extraParams) {
+  _request(method, extraParams, useToken = true) {
     return new Promise((resolve, reject) => {
       const appKey = process.env.ALIEXPRESS_APP_KEY;
       const appSecret = process.env.ALIEXPRESS_APP_SECRET;
-      const trackingId = process.env.ALIEXPRESS_TRACKING_ID || '';
       if (!appKey || !appSecret) return reject(new Error('AliExpress API not configured'));
+
+      const accessToken = useToken ? this._getToken() : null;
+      if (useToken && !accessToken) return reject(new Error('AliExpress not connected. Go to Admin > Sync > Conectar AliExpress'));
 
       const now = new Date();
       const ts = now.getFullYear() + '-' +
@@ -32,10 +46,10 @@ class AliExpressProvider extends ProviderAdapter {
         String(now.getSeconds()).padStart(2, '0');
 
       const params = {
-        app_key: appKey, method, sign_method: 'md5', timestamp,
+        app_key: appKey, method, sign_method: 'md5', timestamp: ts,
         format: 'json', v: '2.0', ...extraParams,
       };
-      if (trackingId) params.tracking_id = trackingId;
+      if (useToken && accessToken) params.access_token = accessToken;
       params.sign = this._sign(params, appSecret);
 
       const postData = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
@@ -57,63 +71,59 @@ class AliExpressProvider extends ProviderAdapter {
 
   async search({ keywords, category, page = 1, pageSize = 20 }) {
     const query = keywords || category || '';
-    const result = await this._request('aliexpress.affiliate.product.query', {
+    const result = await this._request('aliexpress.ds.product.search', {
       keywords: query,
-      page_no: String(page),
+      page: String(page),
       page_size: String(Math.min(pageSize, this.maxPageSize)),
-      target_currency: 'USD',
-      target_language: 'EN',
-      ship_to_country: 'US',
-      sort: 'LAST_VOLUME_DESC',
+      currency: 'USD',
+      language: 'EN',
     });
-    const resp = result?.aliexpress_affiliate_product_query_response;
-    if (resp?.resp_code !== 200) return { products: [], total: 0, error: resp?.resp_msg || 'API Error' };
-    const raw = resp?.result?.products?.product || [];
+    const resp = result?.aliexpress_ds_product_search_response;
+    if (!resp) return { products: [], total: 0, error: result?.error_response?.msg || 'API Error' };
+    const raw = resp?.result?.products || [];
     return {
       products: raw.map(p => this.mapProduct(p)),
-      total: resp?.result?.total_record_count || 0,
+      total: resp?.result?.total_count || 0,
       page, pageSize,
     };
   }
 
   async getDetail(productId) {
-    const result = await this._request('aliexpress.affiliate.productdetail.get', {
-      product_ids: productId,
-      target_currency: 'USD',
-      target_language: 'EN',
-      fields: 'product_main_image_url,product_title,sale_price,target_original_price,average_star,total_tranpro,product_detail_url,product_images',
+    const result = await this._request('aliexpress.ds.product.get', {
+      product_id: String(productId),
     });
-    const resp = result?.aliexpress_affiliate_productdetail_get_response;
-    const p = resp?.result?.products?.[0];
+    const resp = result?.aliexpress_ds_product_get_response;
+    const p = resp?.result;
     if (!p) return null;
     return this.mapProduct(p);
   }
 
   mapProduct(p) {
-    const shippingDays = p.shipping?.days || '';
+    const shippingDays = p.shipping_days || p.shipping?.days || '';
     const stockQty = p.min_order_quantity || 1;
+    const price = p.sale_price || p.price || p.target_sale_price || '0';
     return {
-      id: p.product_id,
-      title: p.product_title || '',
-      price: p.sale_price || p.target_sale_price || '0',
-      originalPrice: p.target_original_price || p.original_price || '0',
-      image: p.product_main_image_url || '',
-      images: p.product_images || [],
-      rating: p.average_star || '4.7',
-      orders: p.total_tranpro || 0,
-      url: p.product_detail_url || '',
+      id: p.product_id || p.id,
+      title: p.product_title || p.title || '',
+      price: String(price),
+      originalPrice: p.original_price || p.target_original_price || String(price),
+      image: p.product_main_image_url || p.image || '',
+      images: p.product_images || (p.image ? [p.image] : []),
+      rating: p.average_star || p.rating || '4.7',
+      orders: p.total_orders || p.total_tranpro || 0,
+      url: p.product_detail_url || p.url || '',
       shipping: shippingDays ? shippingDays + ' dias' : '15-30 dias',
       shippingDays: shippingDays || '20',
-      shippingCost: p.shipping?.cost || '',
-      storeName: p.store_name || '',
+      shippingCost: p.shipping_cost || p.shipping?.cost || '',
+      storeName: p.store_name || p.shop_name || '',
       category: '',
-      description: p.product_title || '',
+      description: p.product_title || p.title || '',
       currency: 'USD',
-      stockStatus: p.stock || 'in_stock',
+      stockStatus: p.stock_status || p.stock || 'in_stock',
       minOrderQty: stockQty,
       handlingTime: p.handling_time || '1-3',
-      sellerRating: p.store_rating || 0,
-      sellerOrders: p.store_tranpro || 0,
+      sellerRating: p.store_rating || p.seller_rating || 0,
+      sellerOrders: p.store_orders || p.seller_orders || 0,
     };
   }
 }

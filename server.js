@@ -113,13 +113,15 @@ app.put('/api/flashsale', (req, res) => {
   res.json(db.flashSale);
 });
 
-// ─── URL Importer (fallback) ───
+// ─── URL Importer ───
+const cheerio = require('cheerio');
+
 function fetchUrl(url) {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? https : http;
     const req = mod.get(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'text/html' },
-      timeout: 10000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'text/html,application/xhtml+xml' },
+      timeout: 15000,
     }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) return fetchUrl(res.headers.location).then(resolve).catch(reject);
       let data = '';
@@ -131,27 +133,190 @@ function fetchUrl(url) {
   });
 }
 
+function scrapeMeta(html, prop) {
+  const $ = cheerio.load(html);
+  return ($(`meta[property="${prop}"]`).attr('content') || $(`meta[name="${prop}"]`).attr('content') || '').trim();
+}
+
+function scrapeJsonLd(html) {
+  const $ = cheerio.load(html);
+  const results = [];
+  $('script[type="application/ld+json"]').each((i, el) => {
+    try { results.push(JSON.parse($(el).html())); } catch {}
+  });
+  return results;
+}
+
+function extractFromJsonLd(html, field) {
+  const items = scrapeJsonLd(html);
+  for (const item of items) {
+    if (item['@type'] === 'Product' || item['@type'] === 'ItemPage') {
+      if (field === 'title') return item.name || item.headline || '';
+      if (field === 'description') return item.description || '';
+      if (field === 'image') return typeof item.image === 'string' ? item.image : (item.image?.url || (Array.isArray(item.image) ? item.image[0] : ''));
+      if (field === 'price') {
+        const arr = Array.isArray(item.offers) ? item.offers : [item.offers];
+        for (const o of arr) if (o?.price) return String(o.price);
+      }
+      if (field === 'currency') {
+        const arr = Array.isArray(item.offers) ? item.offers : [item.offers];
+        for (const o of arr) if (o?.priceCurrency) return o.priceCurrency;
+      }
+    }
+  }
+  return '';
+}
+
+function scrapePrice(html) {
+  const priceLd = extractFromJsonLd(html, 'price');
+  if (priceLd) return priceLd;
+
+  const $ = cheerio.load(html);
+  const selectors = ['[property="og:price:amount"]', '[itemprop="price"]', '.price', '#price',
+    '[class*="price"]', '[class*="Price"]', '.sale-price', '.product-price',
+    '[data-testid="price"]', '[data-automation="price"]'];
+  for (const sel of selectors) {
+    const val = $(sel).first().attr('content') || $(sel).first().text().trim();
+    if (val) {
+      const num = val.replace(/[^0-9.]/g, '');
+      if (num && parseFloat(num) > 0) return num;
+    }
+  }
+
+  const patterns = [
+    /"price"[^:]*:\s*"([^"]+)"/, /"price"[^:]*:\s*([\d.]+)/,
+    /"sale_price"[^:]*:\s*"([^"]+)"/, /"current_price"[^:]*:\s*"([^"]+)"/,
+    /"priceText"[^:]*:\s*"([^"]+)"/, /"product_price"[^:]*:\s*"([^"]+)"/,
+    /"originalPrice"[^:]*:\s*"([^"]+)"/, /"minPrice"[^:]*:\s*([\d.]+)/,
+    /"maxPrice"[^:]*:\s*([\d.]+)/, /"finalPrice"[^:]*:\s*([\d.]+)/,
+    /regular_price["']\s*:\s*["']([^"']+)/, /sale_price["']\s*:\s*["']([^"']+)/,
+  ];
+  for (const p of patterns) {
+    const m = html.match(p);
+    if (m) {
+      const cleaned = m[1].replace(/,/g, '');
+      if (/^\d+(\.\d+)?$/.test(cleaned) && parseFloat(cleaned) > 0) return cleaned;
+    }
+  }
+  return '';
+}
+
+function scrapeImages(html) {
+  const $ = cheerio.load(html);
+  const urls = new Set();
+
+  const ldImage = extractFromJsonLd(html, 'image');
+  if (ldImage) { ldImage.split(',').forEach(u => { if (u.match(/^https?:\/\//i)) urls.add(u); }); }
+  scrapeJsonLd(html).forEach(item => {
+    if (item['@type'] === 'Product' && Array.isArray(item.image))
+      item.image.forEach(i => { if (typeof i === 'string' && i.match(/^https?:\/\//i)) urls.add(i); else if (i?.url) urls.add(i.url); });
+  });
+
+  const ogImage = scrapeMeta(html, 'og:image');
+  if (ogImage) urls.add(ogImage);
+
+  $('img').each((i, el) => {
+    let src = $(el).attr('src') || $(el).attr('data-src') || '';
+    if (src.startsWith('//')) src = 'https:' + src;
+    if (src.startsWith('/') && !src.startsWith('//')) src = 'https:' + src;
+    if (src.match(/^https?:\/\//i) && !src.includes('logo') && !src.includes('icon') && !src.includes('data:image'))
+      urls.add(src.split('?')[0]);
+  });
+
+  const patterns = [
+    /"image"[^:]*:\s*"([^"]+)"[,\}]/g, /"imgUrl"[^:]*:\s*"([^"]+)"[,\}]/g,
+    /"main_image"[^:]*:\s*"([^"]+)"/, /"primary_image"[^:]*:\s*"([^"]+)"/,
+    /"product_main_image_url"[^:]*:\s*"([^"]+)"/, /"imageUrl"[^:]*:\s*"([^"]+)"/,
+  ];
+  for (const pattern of patterns) {
+    let m;
+    while ((m = pattern.exec(html)) !== null) {
+      let val = m[1].replace(/\\"/g, '').replace(/\\\//g, '/');
+      if (val.startsWith('//')) val = 'https:' + val;
+      if (val.startsWith('/') && !val.startsWith('//')) val = 'https:' + val;
+      if (val.match(/^https?:\/\//i) && !val.includes('data:image')) urls.add(val.split('?')[0].split('\\')[0]);
+    }
+  }
+  return [...urls].slice(0, 5);
+}
+
+function extractAliExpressId(url) {
+  const m = url.match(/\/item\/(\d+)\.html/i) || url.match(/aliexpress.*?\/(\d{10,20})/i);
+  return m ? m[1] : null;
+}
+
+function extractAmazonAsin(url) {
+  const m = url.match(/\/(?:dp|product|gp\/product)\/([A-Z0-9]{10})/i);
+  return m ? m[1] : null;
+}
+
 app.post('/api/import-url', async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'URL required' });
   try {
     const html = await fetchUrl(url);
-    const get = (prop) => {
-      const patterns = [
-        new RegExp(`<meta[^>]*property=["']${prop}["'][^>]*content=["']([^"']+)["']`, 'i'),
-        new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*property=["']${prop}["']`, 'i'),
-        new RegExp(`<meta[^>]*name=["']${prop}["'][^>]*content=["']([^"']+)["']`, 'i'),
-      ];
-      for (const p of patterns) { const m = html.match(p); if (m) return m[1]; }
-      return '';
-    };
     let platform = 'Otro';
     if (/temu\.com/i.test(url)) platform = 'Temu';
     else if (/aliexpress/i.test(url)) platform = 'AliExpress';
     else if (/amazon\./i.test(url)) platform = 'Amazon';
-    res.json({ title: get('og:title'), image: get('og:image'), description: get('og:description'), price: '', platform });
+
+    let title = extractFromJsonLd(html, 'title') || scrapeMeta(html, 'og:title') || scrapeMeta(html, 'twitter:title') || '';
+    let image = extractFromJsonLd(html, 'image') || scrapeMeta(html, 'og:image') || scrapeMeta(html, 'twitter:image') || '';
+    let description = extractFromJsonLd(html, 'description') || scrapeMeta(html, 'og:description') || scrapeMeta(html, 'twitter:description') || '';
+    let price = scrapePrice(html);
+    let currency = extractFromJsonLd(html, 'currency') || '';
+    const images = scrapeImages(html);
+
+    if (!title) {
+      const tMatch = html.match(/<title>([^<]+)<\/title>/i);
+      if (tMatch) title = tMatch[1].replace(/&[^;]+;/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    if (platform === 'AliExpress') {
+      const productId = extractAliExpressId(url);
+      if (productId) {
+        try {
+          const AliExpressProvider = require('./providers/aliexpress');
+          const provider = new AliExpressProvider();
+          if (provider.isConfigured) {
+            const detail = await provider.getDetail(productId);
+            if (detail) {
+              title = detail.title || title;
+              price = detail.price || price;
+              if (detail.image) image = detail.image;
+              if (detail.images && detail.images.length > 0) {
+                images.push(...detail.images.slice(0, 5));
+              }
+              if (!description) description = detail.title || '';
+            }
+          }
+        } catch {}
+      }
+    }
+
+    if (platform === 'Amazon') {
+      const asin = extractAmazonAsin(url);
+      if (asin) {
+        try {
+          const AmazonProvider = require('./providers/amazon');
+          const provider = new AmazonProvider();
+          if (provider.isConfigured) {
+            const detail = await provider.getDetail(asin);
+            if (detail) {
+              title = detail.title || title;
+              price = detail.price || price;
+              if (detail.image) image = detail.image;
+              if (!description) description = detail.description || '';
+            }
+          }
+        } catch {}
+      }
+    }
+
+    const csr = !title && !price && html.length > 0 && !html.includes('<title>');
+    res.json({ title: title.trim(), image, description: description.trim(), price, currency, images, platform, csr });
   } catch (e) {
-    res.json({ title: '', image: '', description: '', price: '', platform: 'Otro', error: e.message });
+    res.json({ title: '', image: '', description: '', price: '', images: [], platform: 'Otro', error: e.message });
   }
 });
 
@@ -321,6 +486,83 @@ app.post('/api/search-amazon', async (req, res) => {
 
 // ─── Sync Module Routes ───
 app.use('/api/sync', syncRoutes);
+
+// ═══════════════════════════════════════════════════════════════════
+// ═══ ALIEXPRESS DROP SHIPPING API (OAuth) ═══
+// ═══════════════════════════════════════════════════════════════════
+
+const ALIEXPRESS_APP_KEY = process.env.ALIEXPRESS_APP_KEY;
+const ALIEXPRESS_APP_SECRET = process.env.ALIEXPRESS_APP_SECRET;
+
+// OAuth Authorize - redirect user to AliExpress
+app.get('/api/aliexpress/auth', (req, res) => {
+  if (!ALIEXPRESS_APP_KEY) return res.status(400).send('AliExpress App Key not configured');
+  const redirectUri = process.env.ALIEXPRESS_REDIRECT_URI || `http://localhost:${PORT}/api/aliexpress/callback`;
+  const state = crypto.randomBytes(16).toString('hex');
+  const url = `https://auth.aliexpress.com/oauth/authorize?response_type=code&client_id=${ALIEXPRESS_APP_KEY}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&view=web`;
+  res.redirect(url);
+});
+
+// OAuth Callback - exchange code for token
+app.get('/api/aliexpress/callback', async (req, res) => {
+  const { code, state } = req.query;
+  if (!code) return res.status(400).send('Missing authorization code');
+  try {
+    const token = await exchangeAliExpressCode(code);
+    const db = readDB();
+    db.aliexpressAuth = { ...token, updatedAt: new Date().toISOString() };
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    res.send('<html><body><h2>AliExpress conectado exitosamente</h2><p>Ya puedes cerrar esta ventana y volver al panel admin.</p><script>setTimeout(()=>window.close(),2000)</script></body></html>');
+    if (app.locals.broadcast) app.locals.broadcast({ type: 'aliexpress-connected', data: token });
+  } catch (e) {
+    res.status(500).send('Error al conectar AliExpress: ' + e.message);
+  }
+});
+
+// Check token status
+app.get('/api/aliexpress/token-status', (req, res) => {
+  const db = readDB();
+  const auth = db.aliexpressAuth;
+  if (!auth || !auth.access_token) return res.json({ connected: false });
+  const expired = auth.expire_time && auth.expire_time < Date.now();
+  res.json({ connected: true, expired: !!expired, expiresAt: auth.expire_time });
+});
+
+// Disconnect token
+app.post('/api/aliexpress/disconnect', (req, res) => {
+  const db = readDB();
+  delete db.aliexpressAuth;
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  res.json({ success: true });
+});
+
+function exchangeAliExpressCode(code) {
+  return new Promise((resolve, reject) => {
+    const redirectUri = process.env.ALIEXPRESS_REDIRECT_URI || `http://localhost:${PORT}/api/aliexpress/callback`;
+    const postData = `grant_type=authorization_code&client_id=${ALIEXPRESS_APP_KEY}&client_secret=${ALIEXPRESS_APP_SECRET}&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    const req = https.request({
+      hostname: 'oauth.aliexpress.com', path: '/token', method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(postData) },
+    }, (resp) => {
+      let data = '';
+      resp.on('data', c => data += c);
+      resp.on('end', () => {
+        try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid token response: ' + data)); }
+      });
+    });
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+}
+
+function getAliExpressAccessToken() {
+  const db = readDB();
+  const auth = db.aliexpressAuth;
+  if (!auth || !auth.access_token) return null;
+  if (auth.expire_time && auth.expire_time < Date.now()) return null;
+  return auth.access_token;
+}
 
 // ─── API Status ───
 app.get('/api/status', (req, res) => {

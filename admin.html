@@ -247,6 +247,12 @@
         <p>Importa y sincroniza productos desde proveedores de dropshipping</p>
       </div>
       <div id="syncProvidersStatus" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap"></div>
+      <div id="aliexpressConnection" style="display:none;background:var(--panel-soft);border:2px solid var(--line);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:16px;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-weight:700">AliExpress Drop Shipping:</span>
+        <span id="aliexpressConnStatus" style="color:var(--muted)">Desconectado</span>
+        <button class="secondary" id="aliexpressConnectBtn" style="margin-left:auto">🔗 Conectar AliExpress</button>
+        <button class="secondary" id="aliexpressDisconnectBtn" style="display:none">Desconectar</button>
+      </div>
       <div class="stats-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px">
         <div class="stat-card"><b id="syncStatTotal">0</b><span>Productos sync</span></div>
         <div class="stat-card"><b id="syncStatActive">0</b><span>Syncs activas</span></div>

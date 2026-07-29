@@ -199,12 +199,37 @@ function startSyncPolling() {
   }, 5000);
 }
 
+async function checkAliExpressConnection() {
+  try {
+    const res = await fetch('/api/aliexpress/token-status');
+    const data = await res.json();
+    const container = document.getElementById('aliexpressConnection');
+    const status = document.getElementById('aliexpressConnStatus');
+    const connectBtn = document.getElementById('aliexpressConnectBtn');
+    const disconnectBtn = document.getElementById('aliexpressDisconnectBtn');
+    if (!container) return;
+    container.style.display = 'flex';
+    if (data.connected && !data.expired) {
+      status.textContent = '✅ Conectado';
+      status.style.color = '#065f46';
+      connectBtn.style.display = 'none';
+      disconnectBtn.style.display = '';
+    } else {
+      status.textContent = data.expired ? '⚠️ Token expirado, reconecta' : '❌ Desconectado';
+      status.style.color = data.expired ? '#b45309' : '#dc2626';
+      connectBtn.style.display = '';
+      disconnectBtn.style.display = 'none';
+    }
+  } catch {}
+}
+
 function renderSyncPage() {
   loadSyncProviders();
   loadSyncConfig();
   loadSyncJobs();
   loadSyncStats();
   loadSyncLogs();
+  checkAliExpressConnection();
 }
 
 document.querySelectorAll('.admin-nav button[data-page]').forEach(btn => {
@@ -216,4 +241,25 @@ document.querySelectorAll('.admin-nav button[data-page]').forEach(btn => {
       }).catch(() => {});
     }
   });
+});
+
+document.getElementById('aliexpressConnectBtn')?.addEventListener('click', () => {
+  window.open('/api/aliexpress/auth', '_blank', 'width=600,height=700');
+  // Poll for connection
+  const check = setInterval(async () => {
+    const res = await fetch('/api/aliexpress/token-status');
+    const data = await res.json();
+    if (data.connected) {
+      clearInterval(check);
+      checkAliExpressConnection();
+      syncShowToast('AliExpress conectado!');
+    }
+  }, 2000);
+  setTimeout(() => clearInterval(check), 120000);
+});
+
+document.getElementById('aliexpressDisconnectBtn')?.addEventListener('click', async () => {
+  await fetch('/api/aliexpress/disconnect', { method: 'POST' });
+  checkAliExpressConnection();
+  syncShowToast('AliExpress desconectado');
 });

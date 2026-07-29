@@ -486,9 +486,25 @@ document.getElementById('importUrlBtn')?.addEventListener('click', async () => {
     const res = await fetch(API + '/api/import-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
     const data = await res.json();
     document.getElementById('importLoading').style.display = 'none';
-    if (!data.title && !data.image) { document.getElementById('importError').style.display = ''; document.getElementById('importError').textContent = 'No se pudo extraer datos de esta URL'; return; }
+    if (data.csr && !data.title) {
+      document.getElementById('importError').style.display = '';
+      document.getElementById('importError').textContent = 'Esta página usa JavaScript y no se puede extraer automáticamente. ' + (data.platform !== 'Otro' ? 'Usa la búsqueda por API en la pestaña "' + data.platform + '" en su lugar.' : 'Ingresa los datos manualmente abajo.');
+      return;
+    }
+    if (!data.title && !data.image && !data.price) { document.getElementById('importError').style.display = ''; document.getElementById('importError').textContent = 'No se pudo extraer datos de esta URL'; return; }
+    const priceUsd = parseFloat(data.price) || 0;
+    const priceCop = priceUsd ? Math.round(priceUsd * USD_TO_COP) : 0;
     lastSearchResults = [{ id: Date.now(), title: data.title, image: data.image, price: data.price || '0', rating: '4.7', orders: 0, url, description: data.description, shipping: '' }];
-    openImportPreview(0);
+    document.getElementById('prevImage').querySelector('img').src = data.image || '';
+    document.getElementById('prevName').value = data.title || '';
+    document.getElementById('prevPrice').value = priceCop || '';
+    document.getElementById('prevOldPrice').value = priceCop ? Math.round(priceCop * 1.35) : '';
+    document.getElementById('prevImageInput').value = data.image || '';
+    document.getElementById('prevCategory').value = '';
+    document.getElementById('prevProvider').value = data.platform || 'Otro';
+    document.getElementById('prevDescription').value = data.description || '';
+    document.getElementById('prevSourceUrl').value = url || '';
+    document.getElementById('importPreviewModal').classList.add('open');
   } catch (e) { document.getElementById('importLoading').style.display = 'none'; }
 });
 
