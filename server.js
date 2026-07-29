@@ -499,43 +499,61 @@ app.get('/api/aliexpress/auth', (req, res) => {
   if (!ALIEXPRESS_APP_KEY) return res.status(400).send('AliExpress App Key not configured');
   const redirectUri = process.env.ALIEXPRESS_REDIRECT_URI || `http://localhost:${PORT}/api/aliexpress/callback`;
   const state = crypto.randomBytes(16).toString('hex');
+  app.locals.aliExpressState = state;
   const url = `https://auth.aliexpress.com/oauth/authorize?response_type=code&client_id=${ALIEXPRESS_APP_KEY}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&view=web`;
   res.redirect(url);
 });
 
-// OAuth Callback - exchange code for token
 app.get('/api/aliexpress/callback', async (req, res) => {
   const { code, state } = req.query;
   if (!code) return res.status(400).send('Missing authorization code');
   try {
     const token = await exchangeAliExpressCode(code);
-    const db = readDB();
-    db.aliexpressAuth = { ...token, updatedAt: new Date().toISOString() };
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    app.locals.aliExpressToken = token;
+    global.__aliexpressToken = token;
+    // Also persist to db.json for backup
+    try {
+      const db = readDB();
+      db.aliexpressAuth = { ...token, updatedAt: new Date().toISOString() };
+      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    } catch {}
     res.send(`<html><body><h2>AliExpress conectado exitosamente</h2><p>Ya puedes cerrar esta ventana.</p><script>
       if (window.opener) window.opener.postMessage({ type: 'aliexpress-connected', connected: true }, '*');
       setTimeout(() => window.close(), 1500);
     </script></body></html>`);
-    if (app.locals.broadcast) app.locals.broadcast({ type: 'aliexpress-connected', data: token });
   } catch (e) {
     res.status(500).send('Error al conectar AliExpress: ' + e.message);
   }
 });
 
-// Check token status
 app.get('/api/aliexpress/token-status', (req, res) => {
-  const db = readDB();
-  const auth = db.aliexpressAuth;
-  if (!auth || !auth.access_token) return res.json({ connected: false });
-  const expired = auth.expire_time && auth.expire_time < Date.now();
-  res.json({ connected: true, expired: !!expired, expiresAt: auth.expire_time });
+  const token = app.locals.aliExpressToken || global.__aliexpressToken;
+  if (token && token.access_token) {
+    const expired = token.expire_time && token.expire_time * 1000 < Date.now();
+    return res.json({ connected: true, expired: !!expired, expiresAt: token.expire_time });
+  }
+  // Fallback: check db.json
+  try {
+    const db = readDB();
+    const auth = db.aliexpressAuth;
+    if (auth && auth.access_token) {
+      app.locals.aliExpressToken = auth;
+      global.__aliexpressToken = auth;
+      const expired = auth.expire_time && auth.expire_time * 1000 < Date.now();
+      return res.json({ connected: true, expired: !!expired, expiresAt: auth.expire_time });
+    }
+  } catch {}
+  res.json({ connected: false });
 });
 
-// Disconnect token
 app.post('/api/aliexpress/disconnect', (req, res) => {
-  const db = readDB();
-  delete db.aliexpressAuth;
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  delete app.locals.aliExpressToken;
+  delete global.__aliexpressToken;
+  try {
+    const db = readDB();
+    delete db.aliexpressAuth;
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  } catch {}
   res.json({ success: true });
 });
 

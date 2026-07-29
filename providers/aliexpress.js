@@ -13,11 +13,19 @@ class AliExpressProvider extends ProviderAdapter {
   get maxPageSize() { return 50; }
 
   _getToken() {
+    // Check in-memory token (set by OAuth callback)
+    if (global.__aliexpressToken?.access_token) {
+      const t = global.__aliexpressToken;
+      if (t.expire_time && t.expire_time * 1000 < Date.now()) return null;
+      return t.access_token;
+    }
+    // Fallback: read from db.json
     try {
       const db = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'db.json'), 'utf8'));
       const auth = db.aliexpressAuth;
       if (!auth || !auth.access_token) return null;
-      if (auth.expire_time && auth.expire_time < Date.now()) return null;
+      if (auth.expire_time && auth.expire_time * 1000 < Date.now()) return null;
+      global.__aliexpressToken = auth;
       return auth.access_token;
     } catch { return null; }
   }
