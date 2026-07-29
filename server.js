@@ -382,34 +382,11 @@ app.post('/api/search-aliexpress', async (req, res) => {
   const { keywords, page = 1, pageSize = 20 } = req.body;
   if (!keywords) return res.status(400).json({ error: 'Keywords required' });
   try {
-    const result = await aliExpressRequest('aliexpress.affiliate.product.query', {
-      keywords,
-      page_no: String(page),
-      page_size: String(Math.min(pageSize, 50)),
-      target_currency: 'USD',
-      target_language: 'EN',
-      ship_to_country: 'US',
-      sort: 'LAST_VOLUME_DESC',
-    });
-    const resp = result?.aliexpress_affiliate_product_query_response;
-    if (resp?.resp_code !== 200) return res.json({ products: [], total: 0, error: resp?.resp_msg || 'API Error' });
-    const raw = resp?.result?.products?.product || [];
-    const products = raw.map(p => ({
-      id: p.product_id,
-      title: p.product_title,
-      price: p.sale_price || p.target_sale_price,
-      originalPrice: p.target_original_price || p.original_price,
-      image: p.product_main_image_url,
-      images: p.product_images || [],
-      rating: p.average_star || '4.7',
-      orders: p.total_tranpro || 0,
-      commission: p.commission_rate || '0',
-      url: p.product_detail_url,
-      shipping: p.shipping && p.shipping.days ? p.shipping.days + ' dias' : '',
-      storeName: p.store_name || '',
-    }));
-    const total = resp?.result?.total_record_count || 0;
-    res.json({ products, total, page, pageSize });
+    const AliExpressProvider = require('./providers/aliexpress');
+    const provider = new AliExpressProvider();
+    if (!provider.isConfigured) return res.json({ products: [], total: 0, error: 'AliExpress API not configured' });
+    const result = await provider.search({ keywords, page, pageSize });
+    res.json(result);
   } catch (e) {
     res.json({ products: [], total: 0, error: e.message });
   }
@@ -419,22 +396,14 @@ app.post('/api/product-detail-aliexpress', async (req, res) => {
   const { productId } = req.body;
   if (!productId) return res.status(400).json({ error: 'Product ID required' });
   try {
-    const result = await aliExpressRequest('aliexpress.affiliate.productdetail.get', {
-      product_ids: productId,
-      target_currency: 'USD',
-      target_language: 'EN',
-      fields: 'product_main_image_url,product_title,sale_price,target_original_price,average_star,total_tranpro,product_detail_url,product_images',
-    });
-    const resp = result?.aliexpress_affiliate_productdetail_get_response;
-    const p = resp?.result?.products?.[0];
-    if (!p) return res.status(404).json({ error: 'Product not found' });
-    res.json({
-      id: p.product_id, title: p.product_title, price: p.sale_price || p.target_sale_price,
-      originalPrice: p.target_original_price, image: p.product_main_image_url, images: p.product_images || [],
-      rating: p.average_star, orders: p.total_tranpro, url: p.product_detail_url,
-    });
+    const AliExpressProvider = require('./providers/aliexpress');
+    const provider = new AliExpressProvider();
+    if (!provider.isConfigured) return res.json({ error: 'AliExpress API not configured' });
+    const detail = await provider.getDetail(productId);
+    if (!detail) return res.status(404).json({ error: 'Product not found' });
+    res.json(detail);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.json({ error: e.message });
   }
 });
 
