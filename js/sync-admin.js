@@ -254,8 +254,17 @@ document.querySelectorAll('.admin-nav button[data-page]').forEach(btn => {
   });
 });
 
-document.getElementById('aliexpressConnectBtn')?.addEventListener('click', () => {
+document.getElementById('aliexpressConnectBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('aliexpressConnectBtn');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Despertando app...';
+  try {
+    await syncFetch('/api/status', {}, 8);
+  } catch {}
+  btn.textContent = 'Abriendo AliExpress...';
   window.open('/api/aliexpress/auth', '_blank', 'width=600,height=700');
+  setTimeout(() => { btn.disabled = false; btn.textContent = original; }, 8000);
 });
 
 window.addEventListener('message', (e) => {

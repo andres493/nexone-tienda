@@ -485,6 +485,23 @@ app.get('/api/aliexpress/callback', async (req, res) => {
   console.log('AliExpress callback query:', JSON.stringify(req.query));
   const { code, state } = req.query;
   if (!code) return res.status(400).send('Missing authorization code: ' + JSON.stringify(req.query));
+
+  if (!app.locals.aliExpressUsedCodes) app.locals.aliExpressUsedCodes = new Set();
+
+  const alreadyConnected = () => {
+    const tok = app.locals.aliExpressToken || global.__aliexpressToken;
+    return !!(tok && tok.access_token);
+  };
+
+  if (app.locals.aliExpressUsedCodes.has(code)) {
+    // Bonto may re-execute the callback after serving its boot page: don't re-exchange a used code.
+    if (alreadyConnected()) {
+      return res.send('<html><body style="font-family:sans-serif;padding:40px"><h2 style="color:#059669">✅ AliExpress ya esta conectado</h2><script>if(window.opener)window.opener.postMessage({type:\'aliexpress-connected\',connected:true},\'*\');setTimeout(()=>window.close(),1500)</script></body></html>');
+    }
+    return res.status(400).send('El codigo de autorizacion ya fue usado y no se completo la conexion. Cierra esta ventana e intenta "Conectar AliExpress" de nuevo.');
+  }
+
+  app.locals.aliExpressUsedCodes.add(code);
   try {
     const token = await exchangeAliExpressCode(code);
     console.log('AliExpress token response:', JSON.stringify(token).slice(0, 500));
