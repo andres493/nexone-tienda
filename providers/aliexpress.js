@@ -34,10 +34,12 @@ class AliExpressProvider extends ProviderAdapter {
     } catch { return null; }
   }
 
-  _sign(params, appSecret) {
+  _sign(params, appSecret, apiPath) {
     const sorted = Object.keys(params).sort().reduce((a, k) => { a[k] = params[k]; return a; }, {});
-    const str = appSecret + Object.keys(sorted).map(k => k + sorted[k]).join('') + appSecret;
-    return crypto.createHash('md5').update(str, 'utf8').digest('hex').toUpperCase();
+    const kvp = Object.keys(sorted).map(k => k + sorted[k]).join('');
+    // Dropshipping API uses HMAC-SHA256: path prefix for OP API (/auth/token/create), none for TOP (/sync)
+    const signString = (apiPath || '') + kvp;
+    return crypto.createHmac('sha256', appSecret).update(signString, 'utf8').digest('hex').toUpperCase();
   }
 
   _request(method, extraParams, useToken = true) {
@@ -58,10 +60,10 @@ class AliExpressProvider extends ProviderAdapter {
         String(now.getSeconds()).padStart(2, '0');
 
       const params = {
-        app_key: appKey, method, sign_method: 'md5', timestamp: ts,
+        app_key: appKey, method, sign_method: 'sha256', timestamp: ts,
         format: 'json', v: '2.0', ...extraParams,
       };
-      if (useToken && accessToken) params.access_token = accessToken;
+      if (useToken && accessToken) params.session = accessToken;
       params.sign = this._sign(params, appSecret);
 
       const postData = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
@@ -88,8 +90,9 @@ class AliExpressProvider extends ProviderAdapter {
       keywords: query,
       page: String(page),
       page_size: String(Math.min(pageSize, this.maxPageSize)),
-      currency: 'USD',
-      language: 'EN',
+      target_currency: 'USD',
+      target_language: 'EN',
+      shpt_to: 'US',
     });
     const resp = result?.aliexpress_ds_product_search_response;
     if (!resp) return { products: [], total: 0, error: result?.error_response?.msg || 'API Error' };
