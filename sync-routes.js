@@ -17,8 +17,11 @@ router.put('/config', (req, res) => {
   res.json(config);
 });
 
-router.post('/start', (req, res) => {
-  const { provider, searchType, searchQuery, profitMargin } = req.body;
+router.post('/start', startSyncHandler);
+router.get('/start', startSyncHandler);
+
+function startSyncHandler(req, res) {
+  const { provider, searchType, searchQuery, profitMargin } = req.method === 'GET' ? req.query : req.body;
   if (!provider || !searchQuery) return res.status(400).json({ error: 'Proveedor y termino de busqueda son requeridos' });
   const activeCount = syncEngine.getActiveSyncCount();
   if (activeCount >= 3) return res.status(429).json({ error: 'Maximo 3 sincronizaciones simultaneas. Espera a que terminen las actuales.' });
@@ -29,7 +32,7 @@ router.post('/start', (req, res) => {
 
   const job = syncEngine.createJob({ provider, searchType: searchType || 'keywords', searchQuery, type: 'bulk' }, req.app.locals.broadcast);
   res.json(job);
-});
+}
 
 router.post('/pause/:jobId', (req, res) => {
   const job = syncEngine.pauseJob(req.params.jobId);

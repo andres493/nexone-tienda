@@ -151,11 +151,17 @@ document.getElementById('syncStartBtn')?.addEventListener('click', async () => {
   });
 
   try {
-    const data = await syncFetch(SYNC_API + '/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider, searchType, searchQuery, profitMargin }),
-    });
+    const qs = new URLSearchParams({ provider, searchType, searchQuery, profitMargin }).toString();
+    let data = null;
+    try {
+      data = await syncFetch(SYNC_API + '/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, searchType, searchQuery, profitMargin }),
+      });
+    } catch (e) {
+      data = await syncFetch(SYNC_API + '/start?' + qs, {}, 10);
+    }
     if (data.error) return syncShowToast('Error: ' + data.error);
     syncShowToast('Sincronizacion dropshipping iniciada');
     await loadSyncJobs();
