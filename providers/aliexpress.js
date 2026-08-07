@@ -87,20 +87,20 @@ class AliExpressProvider extends ProviderAdapter {
 
   async search({ keywords, category, page = 1, pageSize = 20 }) {
     const query = keywords || category || '';
-    const result = await this._request('aliexpress.ds.product.search', {
-      keywords: query,
-      page: String(page),
+    const result = await this._request('aliexpress.ds.text.search', {
+      key_word: query,
+      local_country: 'US',
+      local_language: 'en',
+      page_no: String(page),
       page_size: String(Math.min(pageSize, this.maxPageSize)),
-      target_currency: 'USD',
-      target_language: 'EN',
-      shpt_to: 'US',
+      sort_by: 'orders',
     });
-    const resp = result?.aliexpress_ds_product_search_response;
+    const resp = result?.aliexpress_ds_text_search_response || result?.aliexpress_ds_product_search_response;
     if (!resp) return { products: [], total: 0, error: result?.error_response?.msg || 'API Error' };
-    const raw = resp?.result?.products || [];
+    const raw = resp?.result?.products || resp?.result?.list || resp?.result?.item_list || [];
     return {
       products: raw.map(p => this.mapProduct(p)),
-      total: resp?.result?.total_count || 0,
+      total: resp?.result?.total_count || resp?.result?.total || raw.length,
       page, pageSize,
     };
   }
@@ -108,6 +108,8 @@ class AliExpressProvider extends ProviderAdapter {
   async getDetail(productId) {
     const result = await this._request('aliexpress.ds.product.get', {
       product_id: String(productId),
+      local_country: 'US',
+      local_language: 'en',
     });
     const resp = result?.aliexpress_ds_product_get_response;
     const p = resp?.result;
