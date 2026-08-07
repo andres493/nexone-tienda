@@ -144,31 +144,37 @@ document.getElementById('syncStartBtn')?.addEventListener('click', async () => {
   const maxProducts = Number(document.getElementById('syncMaxProducts').value);
   if (!searchQuery) return syncShowToast('Escribe un termino de busqueda');
 
-  await fetch(SYNC_API + '/config', {
+  fetch(SYNC_API + '/config', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ maxProductsPerSync: maxProducts }),
-  });
+  }).catch(() => {});
 
-  try {
-    const qs = new URLSearchParams({ provider, searchType, searchQuery, profitMargin }).toString();
-    let data = null;
-    try {
-      data = await syncFetch(SYNC_API + '/start', {
+  const qs = new URLSearchParams({ provider, searchType, searchQuery, profitMargin }).toString();
+  let jobFound = false;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    if (attempt === 0) {
+      fetch(SYNC_API + '/start?' + qs).catch(() => {});
+      fetch(SYNC_API + '/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider, searchType, searchQuery, profitMargin }),
-      });
-    } catch (e) {
-      data = await syncFetch(SYNC_API + '/start?' + qs, {}, 10);
+      }).catch(() => {});
     }
-    if (data.error) return syncShowToast('Error: ' + data.error);
-    syncShowToast('Sincronizacion dropshipping iniciada');
-    await loadSyncJobs();
-    startSyncPolling();
-  } catch (e) {
-    syncShowToast('Error al iniciar: ' + e.message);
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      const jobs = await syncFetch(SYNC_API + '/jobs', {}, 2);
+      const match = jobs.find(j => j.provider === provider && j.searchQuery === searchQuery);
+      if (match) { jobFound = true; break; }
+    } catch {}
   }
+  if (jobFound) {
+    syncShowToast('Sincronizacion dropshipping iniciada');
+  } else {
+    syncShowToast('Error al iniciar: la app no respondio. Reintenta en unos segundos');
+  }
+  await loadSyncJobs();
+  startSyncPolling();
 });
 
 document.getElementById('syncSaveConfigBtn')?.addEventListener('click', async () => {

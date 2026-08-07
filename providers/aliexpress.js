@@ -79,6 +79,7 @@ class AliExpressProvider extends ProviderAdapter {
         });
       });
       req.on('error', reject);
+      req.setTimeout(20000, () => { req.destroy(new Error('Timeout en llamada a AliExpress (20s)')); });
       req.write(postData);
       req.end();
     });
