@@ -105,26 +105,30 @@ async function runSyncJob(jobId, broadcast) {
     while (hasMore && totalImported + totalUpdated + totalSkipped < maxProducts) {
       const activeJob = activeJobs.get(jobId);
       if (!activeJob || activeJob.cancelled) {
-        updateJob(db, jobId, { status: 'cancelled' });
-        addLog(db, jobId, 'warn', 'Sincronizacion cancelada por el usuario');
-        writeDB(db);
-        if (broadcast) broadcast('sync-job-updated', db.syncJobs.find(j => j.id === jobId));
+        const dbCancelled = ensureConfig(readDB());
+        updateJob(dbCancelled, jobId, { status: 'cancelled' });
+        addLog(dbCancelled, jobId, 'warn', 'Sincronizacion cancelada por el usuario');
+        writeDB(dbCancelled);
+        if (broadcast) broadcast('sync-job-updated', dbCancelled.syncJobs.find(j => j.id === jobId));
         return;
       }
       if (activeJob && activeJob.paused) {
-        updateJob(db, jobId, { status: 'paused' });
-        writeDB(db);
-        if (broadcast) broadcast('sync-job-updated', db.syncJobs.find(j => j.id === jobId));
+        const dbPaused = ensureConfig(readDB());
+        updateJob(dbPaused, jobId, { status: 'paused' });
+        writeDB(dbPaused);
+        if (broadcast) broadcast('sync-job-updated', dbPaused.syncJobs.find(j => j.id === jobId));
         while (activeJob && activeJob.paused && !activeJob.cancelled) { await delay(1000); }
         if (activeJob && activeJob.cancelled) {
-          updateJob(db, jobId, { status: 'cancelled' });
-          writeDB(db);
-          if (broadcast) broadcast('sync-job-updated', db.syncJobs.find(j => j.id === jobId));
+          const dbCancelled2 = ensureConfig(readDB());
+          updateJob(dbCancelled2, jobId, { status: 'cancelled' });
+          writeDB(dbCancelled2);
+          if (broadcast) broadcast('sync-job-updated', dbCancelled2.syncJobs.find(j => j.id === jobId));
           return;
         }
-        updateJob(db, jobId, { status: 'running' });
-        writeDB(db);
-        if (broadcast) broadcast('sync-job-updated', db.syncJobs.find(j => j.id === jobId));
+        const dbResumed = ensureConfig(readDB());
+        updateJob(dbResumed, jobId, { status: 'running' });
+        writeDB(dbResumed);
+        if (broadcast) broadcast('sync-job-updated', dbResumed.syncJobs.find(j => j.id === jobId));
       }
 
       let result;
@@ -224,21 +228,23 @@ async function runSyncJob(jobId, broadcast) {
       if (hasMore) await delay(provider.searchDelayMs);
     }
 
-    updateJob(db, jobId, {
+    const dbDone = ensureConfig(readDB());
+    updateJob(dbDone, jobId, {
       status: 'completed',
       completedAt: new Date().toISOString(),
       stats: { imported: totalImported, updated: totalUpdated, skipped: totalSkipped, errors: totalErrors, outOfStock: totalOutOfStock },
     });
-    addLog(db, jobId, 'info', `Sync completado: ${totalImported} nuevos, ${totalUpdated} actualizados, ${totalSkipped} omitidos, ${totalOutOfStock} sin stock, ${totalErrors} errores`);
-    writeDB(db);
-    if (broadcast) broadcast('sync-job-updated', db.syncJobs.find(j => j.id === jobId));
+    addLog(dbDone, jobId, 'info', `Sync completado: ${totalImported} nuevos, ${totalUpdated} actualizados, ${totalSkipped} omitidos, ${totalOutOfStock} sin stock, ${totalErrors} errores`);
+    writeDB(dbDone);
+    if (broadcast) broadcast('sync-job-updated', dbDone.syncJobs.find(j => j.id === jobId));
     if (broadcast) broadcast('product-added', {});
 
   } catch (e) {
-    updateJob(db, jobId, { status: 'error', errorLog: [e.message] });
-    addLog(db, jobId, 'error', `Sync fallido: ${e.message}`);
-    writeDB(db);
-    if (broadcast) broadcast('sync-job-updated', db.syncJobs.find(j => j.id === jobId));
+    const dbErr = ensureConfig(readDB());
+    updateJob(dbErr, jobId, { status: 'error', errorLog: [e.message] });
+    addLog(dbErr, jobId, 'error', `Sync fallido: ${e.message}`);
+    writeDB(dbErr);
+    if (broadcast) broadcast('sync-job-updated', dbErr.syncJobs.find(j => j.id === jobId));
   } finally {
     activeJobs.delete(jobId);
   }
