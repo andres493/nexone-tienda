@@ -2,6 +2,19 @@ const SYNC_API = '/api/sync';
 
 let syncPollTimer = null;
 
+async function syncFetch(url, options, retries = 5) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      const text = await res.text();
+      return JSON.parse(text);
+    } catch (e) {
+      if (i === retries - 1) throw e;
+      await new Promise(r => setTimeout(r, 3000 + i * 2000));
+    }
+  }
+}
+
 function syncShowToast(msg) {
   const t = document.getElementById('toast');
   if (!t) return;
@@ -13,8 +26,7 @@ function syncShowToast(msg) {
 
 async function loadSyncProviders() {
   try {
-    const res = await fetch(SYNC_API + '/providers');
-    const providers = await res.json();
+    const providers = await syncFetch(SYNC_API + '/providers');
     const el = document.getElementById('syncProvidersStatus');
     el.innerHTML = providers.map(p => {
       const color = p.configured ? '#d1fae5' : '#fee2e2';
@@ -31,8 +43,7 @@ async function loadSyncProviders() {
 
 async function loadSyncConfig() {
   try {
-    const res = await fetch(SYNC_API + '/config');
-    const config = await res.json();
+    const config = await syncFetch(SYNC_API + '/config');
     document.getElementById('syncAutoEnabled').checked = config.autoSyncEnabled || false;
     document.getElementById('syncAutoHide').checked = config.autoHideOutOfStock !== false;
     document.getElementById('syncInterval').value = config.autoSyncIntervalMinutes || 60;
@@ -43,8 +54,7 @@ async function loadSyncConfig() {
 
 async function loadSyncJobs() {
   try {
-    const res = await fetch(SYNC_API + '/jobs');
-    const jobs = await res.json();
+    const jobs = await syncFetch(SYNC_API + '/jobs');
     renderSyncJobs(jobs);
     updateSyncStats(jobs);
   } catch {}
@@ -52,8 +62,7 @@ async function loadSyncJobs() {
 
 async function loadSyncStats() {
   try {
-    const res = await fetch(SYNC_API + '/stats');
-    const stats = await res.json();
+    const stats = await syncFetch(SYNC_API + '/stats');
     document.getElementById('syncStatTotal').textContent = (stats.synced || 0).toLocaleString('es-ES');
     document.getElementById('syncStatOutOfStock').textContent = (stats.outOfStock || 0).toLocaleString('es-ES');
     if (stats.lastSync) {
@@ -64,8 +73,7 @@ async function loadSyncStats() {
 
 async function loadSyncLogs() {
   try {
-    const res = await fetch(SYNC_API + '/logs?limit=50');
-    const logs = await res.json();
+    const logs = await syncFetch(SYNC_API + '/logs?limit=50');
     renderSyncLogs(logs);
   } catch {}
 }
@@ -110,20 +118,20 @@ function renderSyncLogs(logs) {
 }
 
 async function syncPause(jobId) {
-  await fetch(SYNC_API + '/pause/' + jobId, { method: 'POST' });
+  await syncFetch(SYNC_API + '/pause/' + jobId, { method: 'POST' });
   syncShowToast('Sincronizacion pausada');
   await loadSyncJobs();
 }
 
 async function syncResume(jobId) {
-  await fetch(SYNC_API + '/resume/' + jobId, { method: 'POST' });
+  await syncFetch(SYNC_API + '/resume/' + jobId, { method: 'POST' });
   syncShowToast('Sincronizacion reanudada');
   await loadSyncJobs();
 }
 
 async function syncCancel(jobId) {
   if (!confirm('¿Cancelar esta sincronizacion?')) return;
-  await fetch(SYNC_API + '/cancel/' + jobId, { method: 'POST' });
+  await syncFetch(SYNC_API + '/cancel/' + jobId, { method: 'POST' });
   syncShowToast('Sincronizacion cancelada');
   await loadSyncJobs();
 }
@@ -143,12 +151,11 @@ document.getElementById('syncStartBtn')?.addEventListener('click', async () => {
   });
 
   try {
-    const res = await fetch(SYNC_API + '/start', {
+    const data = await syncFetch(SYNC_API + '/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider, searchType, searchQuery, profitMargin }),
     });
-    const data = await res.json();
     if (data.error) return syncShowToast('Error: ' + data.error);
     syncShowToast('Sincronizacion dropshipping iniciada');
     await loadSyncJobs();
@@ -190,8 +197,7 @@ function startSyncPolling() {
     await loadSyncJobs();
     await loadSyncLogs();
     await loadSyncStats();
-    const res = await fetch(SYNC_API + '/status');
-    const data = await res.json();
+    const data = await syncFetch(SYNC_API + '/status');
     if (data.activeSyncs === 0) {
       clearInterval(syncPollTimer);
       syncPollTimer = null;
@@ -201,8 +207,7 @@ function startSyncPolling() {
 
 async function checkAliExpressConnection() {
   try {
-    const res = await fetch('/api/aliexpress/token-status');
-    const data = await res.json();
+    const data = await syncFetch('/api/aliexpress/token-status', {}, 3);
     const container = document.getElementById('aliexpressConnection');
     const status = document.getElementById('aliexpressConnStatus');
     const connectBtn = document.getElementById('aliexpressConnectBtn');
@@ -236,7 +241,7 @@ document.querySelectorAll('.admin-nav button[data-page]').forEach(btn => {
   btn.addEventListener('click', function () {
     if (this.dataset.page === 'sync') {
       renderSyncPage();
-      fetch(SYNC_API + '/status').then(r => r.json()).then(data => {
+      syncFetch(SYNC_API + '/status').then(data => {
         if (data.activeSyncs > 0) startSyncPolling();
       }).catch(() => {});
     }
@@ -255,7 +260,7 @@ window.addEventListener('message', (e) => {
 });
 
 document.getElementById('aliexpressDisconnectBtn')?.addEventListener('click', async () => {
-  await fetch('/api/aliexpress/disconnect', { method: 'POST' });
+  await syncFetch('/api/aliexpress/disconnect', { method: 'POST' }, 3);
   checkAliExpressConnection();
   syncShowToast('AliExpress desconectado');
 });
