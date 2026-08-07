@@ -474,8 +474,9 @@ app.get('/api/aliexpress/auth', (req, res) => {
 });
 
 app.get('/api/aliexpress/callback', async (req, res) => {
+  console.log('AliExpress callback query:', JSON.stringify(req.query));
   const { code, state } = req.query;
-  if (!code) return res.status(400).send('Missing authorization code');
+  if (!code) return res.status(400).send('Missing authorization code: ' + JSON.stringify(req.query));
   try {
     const token = await exchangeAliExpressCode(code);
     console.log('AliExpress token response:', JSON.stringify(token).slice(0, 500));
@@ -566,9 +567,9 @@ function exchangeAliExpressCode(code) {
           try {
             const j = JSON.parse(data);
             if (j.access_token) return resolve(j);
-            console.log(`Token attempt ${attempt}: ${host} -`, data.slice(0, 200));
+            console.log(`Token attempt ${attempt}: ${host} - FULL RESPONSE:`, data.slice(0, 1000));
             tryNext();
-          } catch { tryNext(); }
+          } catch { console.log(`Token attempt ${attempt}: ${host} - NON-JSON:`, data.slice(0, 500)); tryNext(); }
         });
       });
       req.on('error', () => tryNext());
