@@ -147,17 +147,16 @@ document.getElementById('syncStartBtn')?.addEventListener('click', async () => {
   fetch(SYNC_API + '/config?save=1&maxProductsPerSync=' + maxProducts).catch(() => {});
 
   const qs = new URLSearchParams({ provider, searchType, searchQuery, profitMargin }).toString();
+  const postBody = JSON.stringify({ provider, searchType, searchQuery, profitMargin });
   let jobFound = false;
-  for (let attempt = 0; attempt < 10; attempt++) {
-    if (attempt === 0) {
-      fetch(SYNC_API + '/start?' + qs).catch(() => {});
-      fetch(SYNC_API + '/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, searchType, searchQuery, profitMargin }),
-      }).catch(() => {});
-    }
-    await new Promise(r => setTimeout(r, 3000));
+  for (let attempt = 0; attempt < 20; attempt++) {
+    fetch(SYNC_API + '/start?' + qs).catch(() => {});
+    fetch(SYNC_API + '/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: postBody,
+    }).catch(() => {});
+    await new Promise(r => setTimeout(r, 6000));
     try {
       const jobs = await syncFetch(SYNC_API + '/jobs', {}, 2);
       const match = jobs.find(j => j.provider === provider && j.searchQuery === searchQuery);

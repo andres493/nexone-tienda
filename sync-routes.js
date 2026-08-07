@@ -36,6 +36,13 @@ function startSyncHandler(req, res) {
   const activeCount = syncEngine.getActiveSyncCount();
   if (activeCount >= 3) return res.status(429).json({ error: 'Maximo 3 sincronizaciones simultaneas. Espera a que terminen las actuales.' });
 
+  // Dedupe: if an identical job is already queued/running, return it instead of creating another
+  const existing = syncEngine.getJobs().find(j =>
+    j.provider === provider && j.searchQuery === searchQuery &&
+    (j.status === 'queued' || j.status === 'running')
+  );
+  if (existing) return res.json(existing);
+
   if (profitMargin !== undefined) {
     syncEngine.updateConfig({ providers: { [provider]: { profitMargin } } }, req.app.locals.broadcast);
   }
