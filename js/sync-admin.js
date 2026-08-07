@@ -144,11 +144,7 @@ document.getElementById('syncStartBtn')?.addEventListener('click', async () => {
   const maxProducts = Number(document.getElementById('syncMaxProducts').value);
   if (!searchQuery) return syncShowToast('Escribe un termino de busqueda');
 
-  fetch(SYNC_API + '/config', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ maxProductsPerSync: maxProducts }),
-  }).catch(() => {});
+  fetch(SYNC_API + '/config?save=1&maxProductsPerSync=' + maxProducts).catch(() => {});
 
   const qs = new URLSearchParams({ provider, searchType, searchQuery, profitMargin }).toString();
   let jobFound = false;
@@ -179,17 +175,15 @@ document.getElementById('syncStartBtn')?.addEventListener('click', async () => {
 
 document.getElementById('syncSaveConfigBtn')?.addEventListener('click', async () => {
   try {
-    await fetch(SYNC_API + '/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        autoSyncEnabled: document.getElementById('syncAutoEnabled').checked,
-        autoHideOutOfStock: document.getElementById('syncAutoHide').checked,
-        autoSyncIntervalMinutes: Number(document.getElementById('syncInterval').value),
-        defaultProfitMargin: Number(document.getElementById('syncDefaultMargin').value),
-        maxProductsPerSync: Number(document.getElementById('syncMaxProducts').value),
-      }),
-    });
+    const qs = new URLSearchParams({
+      save: '1',
+      autoSyncEnabled: document.getElementById('syncAutoEnabled').checked,
+      autoHideOutOfStock: document.getElementById('syncAutoHide').checked,
+      autoSyncIntervalMinutes: document.getElementById('syncInterval').value,
+      defaultProfitMargin: document.getElementById('syncDefaultMargin').value,
+      maxProductsPerSync: document.getElementById('syncMaxProducts').value,
+    }).toString();
+    await syncFetch(SYNC_API + '/config?' + qs);
     syncShowToast('Configuracion dropshipping guardada');
   } catch (e) {
     syncShowToast('Error: ' + e.message);

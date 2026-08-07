@@ -9,11 +9,15 @@ router.get('/providers', (req, res) => {
 });
 
 router.get('/config', (req, res) => {
-  res.json(syncEngine.getConfig());
-});
-
-router.put('/config', (req, res) => {
-  const config = syncEngine.updateConfig(req.body, req.app.locals.broadcast);
+  if (req.query.save !== '1') return res.json(syncEngine.getConfig());
+  const q = req.query;
+  const updates = {};
+  if (q.maxProductsPerSync) updates.maxProductsPerSync = Number(q.maxProductsPerSync);
+  if (q.defaultProfitMargin) updates.defaultProfitMargin = Number(q.defaultProfitMargin);
+  if (q.autoSyncEnabled !== undefined) updates.autoSyncEnabled = q.autoSyncEnabled === 'true';
+  if (q.autoHideOutOfStock !== undefined) updates.autoHideOutOfStock = q.autoHideOutOfStock === 'true';
+  if (q.provider && q.profitMargin) updates.providers = { [q.provider]: { profitMargin: Number(q.profitMargin) } };
+  const config = syncEngine.updateConfig(updates, req.app.locals.broadcast);
   res.json(config);
 });
 
