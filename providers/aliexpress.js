@@ -97,10 +97,17 @@ class AliExpressProvider extends ProviderAdapter {
     });
     const resp = result?.aliexpress_ds_text_search_response || result?.aliexpress_ds_product_search_response;
     if (!resp) return { products: [], total: 0, error: result?.error_response?.msg || 'API Error' };
-    const raw = resp?.result?.products || resp?.result?.list || resp?.result?.item_list || resp?.result?.product_list || [];
+    const data = resp?.data || resp?.result || resp;
+    const prods = data?.products;
+    let raw = [];
+    if (Array.isArray(prods)) raw = prods;
+    else if (prods && Array.isArray(prods.selection_search_product)) raw = prods.selection_search_product;
+    else if (prods && Array.isArray(prods.list)) raw = prods.list;
+    else if (Array.isArray(data?.product_list)) raw = data.product_list;
+    else if (Array.isArray(data?.list)) raw = data.list;
     return {
       products: raw.map(p => this.mapProduct(p)),
-      total: resp?.result?.total_count || resp?.result?.totalCount || resp?.result?.total_num || resp?.result?.total || raw.length,
+      total: data?.totalCount || data?.total_count || data?.total_num || data?.total || raw.length,
       page, pageSize,
     };
   }
@@ -122,31 +129,39 @@ class AliExpressProvider extends ProviderAdapter {
   }
 
   mapProduct(p) {
-    const shippingDays = p.shipping_days || p.shipping?.days || '';
-    const stockQty = p.min_order_quantity || 1;
-    const price = p.sale_price || p.price || p.target_sale_price || '0';
+    const shippingDays = p.shipping_days || p.shippingDays || p.shipping?.days || '';
+    const stockQty = p.min_order_quantity || p.minOrderQty || 1;
+    const price = p.target_sale_price || p.targetSalePrice || p.sale_price || p.salePrice || p.price || '0';
+    let rating = parseFloat(p.evaluate_rate || p.evaluateRate || p.average_star || p.averageStar || p.rating);
+    if (isNaN(rating)) rating = 0;
+    if (rating > 5 && rating <= 100) rating = rating / 20;
+    const ordersStr = p.orders || p.total_orders || p.totalOrders || p.total_tranpro || 0;
+    const orders = parseInt(String(ordersStr).replace(/[^\d]/g, '')) || 0;
+    let url = p.item_url || p.itemUrl || p.product_detail_url || p.url || '';
+    if (url && url.startsWith('//')) url = 'https:' + url;
+    const image = p.item_main_pic || p.itemMainPic || p.product_main_image_url || p.image || '';
     return {
-      id: p.product_id || p.id,
-      title: p.product_title || p.title || '',
+      id: p.item_id || p.itemId || p.product_id || p.productId || p.id,
+      title: p.title || p.product_title || p.productTitle || '',
       price: String(price),
-      originalPrice: p.original_price || p.target_original_price || String(price),
-      image: p.product_main_image_url || p.image || '',
-      images: p.product_images || (p.image ? [p.image] : []),
-      rating: p.average_star || p.rating || '4.7',
-      orders: p.total_orders || p.total_tranpro || 0,
-      url: p.product_detail_url || p.url || '',
+      originalPrice: String(p.target_original_price || p.targetOriginalPrice || p.original_price || p.originalPrice || price),
+      image,
+      images: p.product_images || p.productImages || (image ? [image] : []),
+      rating: rating ? Number(rating.toFixed(1)) : 0,
+      orders,
+      url,
       shipping: shippingDays ? shippingDays + ' dias' : '15-30 dias',
       shippingDays: shippingDays || '20',
-      shippingCost: p.shipping_cost || p.shipping?.cost || '',
-      storeName: p.store_name || p.shop_name || '',
-      category: '',
-      description: p.product_title || p.title || '',
-      currency: 'USD',
-      stockStatus: p.stock_status || p.stock || 'in_stock',
+      shippingCost: p.shipping_cost || p.shippingCost || p.shipping?.cost || '',
+      storeName: p.store_name || p.storeName || p.shop_name || p.shopName || '',
+      category: p.cate_id || p.cateId || '',
+      description: p.title || p.product_title || p.productTitle || '',
+      currency: p.target_original_price_currency || p.targetOriginalPriceCurrency || p.sale_price_currency || p.salePriceCurrency || 'USD',
+      stockStatus: p.stock_status || p.stockStatus || p.stock || 'in_stock',
       minOrderQty: stockQty,
-      handlingTime: p.handling_time || '1-3',
-      sellerRating: p.store_rating || p.seller_rating || 0,
-      sellerOrders: p.store_orders || p.seller_orders || 0,
+      handlingTime: p.handling_time || p.handlingTime || '1-3',
+      sellerRating: p.store_rating || p.storeRating || p.seller_rating || p.sellerRating || 0,
+      sellerOrders: p.store_orders || p.storeOrders || p.seller_orders || p.sellerOrders || 0,
     };
   }
 }
