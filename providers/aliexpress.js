@@ -88,14 +88,12 @@ class AliExpressProvider extends ProviderAdapter {
   async search({ keywords, category, page = 1, pageSize = 20 }) {
     const query = keywords || category || '';
     const result = await this._request('aliexpress.ds.text.search', {
-      key_word: query,
-      local_country: 'US',
+      keyWord: query,
+      local: 'en_US',
       countryCode: 'US',
       currency: 'USD',
-      local_language: 'en',
-      page_no: String(page),
-      page_size: String(Math.min(pageSize, this.maxPageSize)),
-      sort_by: 'orders',
+      pageSize: String(Math.min(pageSize, this.maxPageSize)),
+      pageIndex: String(page),
     });
     const resp = result?.aliexpress_ds_text_search_response || result?.aliexpress_ds_product_search_response;
     if (!resp) return { products: [], total: 0, error: result?.error_response?.msg || 'API Error' };
@@ -105,6 +103,10 @@ class AliExpressProvider extends ProviderAdapter {
       total: resp?.result?.total_count || resp?.result?.totalCount || resp?.result?.total_num || resp?.result?.total || raw.length,
       page, pageSize,
     };
+  }
+
+  async rawSearch(extraParams = {}) {
+    return this._request('aliexpress.ds.text.search', extraParams);
   }
 
   async getDetail(productId) {

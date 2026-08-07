@@ -408,6 +408,23 @@ app.post('/api/product-detail-aliexpress', async (req, res) => {
   }
 });
 
+app.get('/api/aliexpress/debug-search', async (req, res) => {
+  try {
+    const AliExpressProvider = require('./providers/aliexpress');
+    const provider = new AliExpressProvider();
+    if (!provider.isConfigured) return res.status(401).json({ error: 'AliExpress API not configured' });
+    const params = {};
+    for (const [k, v] of Object.entries(req.query)) {
+      if (k === '_') continue;
+      params[k] = Array.isArray(v) ? v.join(',') : v;
+    }
+    const raw = await provider.rawSearch(params);
+    res.json(raw);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════
 // ═══ AMAZON CREATORS API (PA-API v5 compatible) ═══
 // ═══════════════════════════════════════════════════════════════════
