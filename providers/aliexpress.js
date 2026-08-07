@@ -91,6 +91,7 @@ class AliExpressProvider extends ProviderAdapter {
       key_word: query,
       local_country: 'US',
       countryCode: 'US',
+      currency: 'USD',
       local_language: 'en',
       page_no: String(page),
       page_size: String(Math.min(pageSize, this.maxPageSize)),
