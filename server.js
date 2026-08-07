@@ -469,7 +469,7 @@ app.get('/api/aliexpress/auth', (req, res) => {
   const redirectUri = process.env.ALIEXPRESS_REDIRECT_URI || `http://localhost:${PORT}/api/aliexpress/callback`;
   const state = crypto.randomBytes(16).toString('hex');
   app.locals.aliExpressState = state;
-  const url = `https://auth.aliexpress.com/oauth/authorize?response_type=code&client_id=${ALIEXPRESS_APP_KEY}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&view=web`;
+  const url = `https://api-sg.aliexpress.com/oauth/authorize?response_type=code&force_auth=true&client_id=${ALIEXPRESS_APP_KEY}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
   res.redirect(url);
 });
 
@@ -541,42 +541,42 @@ app.post('/api/aliexpress/disconnect', (req, res) => {
 
 function exchangeAliExpressCode(code) {
   return new Promise((resolve, reject) => {
-    const redirectUri = process.env.ALIEXPRESS_REDIRECT_URI || `http://localhost:${PORT}/api/aliexpress/callback`;
-    const hosts = ['oauth.aliexpress.com', 'auth.aliexpress.com'];
-    const bodies = [
-      `grant_type=authorization_code&client_id=${ALIEXPRESS_APP_KEY}&client_secret=${ALIEXPRESS_APP_SECRET}&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}`,
-      `grant_type=authorization_code&app_key=${ALIEXPRESS_APP_KEY}&app_secret=${ALIEXPRESS_APP_SECRET}&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}`,
-      `grant_type=authorization_code&client_id=${ALIEXPRESS_APP_KEY}&client_secret=${ALIEXPRESS_APP_SECRET}&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}&sp=ae`,
-    ];
-    let attempt = 0;
-    const total = hosts.length * bodies.length;
-    function tryNext() {
-      if (attempt >= total) return reject(new Error('All token exchange attempts failed'));
-      const hi = Math.floor(attempt / bodies.length);
-      const bi = attempt % bodies.length;
-      const host = hosts[hi];
-      const postData = bodies[bi];
-      attempt++;
-      const req = https.request({
-        hostname: host, path: '/token', method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(postData) },
-      }, (resp) => {
-        let data = '';
-        resp.on('data', c => data += c);
-        resp.on('end', () => {
-          try {
-            const j = JSON.parse(data);
-            if (j.access_token) return resolve(j);
-            console.log(`Token attempt ${attempt}: ${host} - FULL RESPONSE:`, data.slice(0, 1000));
-            tryNext();
-          } catch { console.log(`Token attempt ${attempt}: ${host} - NON-JSON:`, data.slice(0, 500)); tryNext(); }
-        });
+    // AliExpress Dropshipping API: exchange code at /rest/auth/token/create with HMAC-SHA256 signed request
+    const apiPath = '/auth/token/create';
+    const params = {
+      app_key: ALIEXPRESS_APP_KEY,
+      sign_method: 'sha256',
+      timestamp: Date.now().toString(),
+      code,
+    };
+    const sortedKeys = Object.keys(params).sort();
+    const signString = apiPath + sortedKeys.map(k => k + params[k]).join('');
+    const sign = crypto.createHmac('sha256', ALIEXPRESS_APP_SECRET).update(signString).digest('hex').toUpperCase();
+    params.sign = sign;
+    const qs = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
+    const req = https.request({
+      hostname: 'api-sg.aliexpress.com', path: `/rest${apiPath}?${qs}`, method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': 0 },
+    }, (resp) => {
+      let data = '';
+      resp.on('data', c => data += c);
+      resp.on('end', () => {
+        console.log('AliExpress token/create response:', data.slice(0, 1000));
+        try {
+          const j = JSON.parse(data);
+          if (j.access_token) {
+            // Normalize expiry to epoch seconds (matches _getToken checks)
+            if (j.expires_in) j.expire_time = Math.floor(Date.now() / 1000) + Number(j.expires_in);
+            return resolve(j);
+          }
+          reject(new Error('Token create failed: ' + data.slice(0, 300)));
+        } catch {
+          reject(new Error('Invalid token response: ' + data.slice(0, 300)));
+        }
       });
-      req.on('error', () => tryNext());
-      req.write(postData);
-      req.end();
-    }
-    tryNext();
+    });
+    req.on('error', reject);
+    req.end();
   });
 }
 
