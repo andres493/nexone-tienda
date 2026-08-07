@@ -570,6 +570,19 @@ app.get('/api/aliexpress/token-status', (req, res) => {
   res.json({ connected: false });
 });
 
+// Export the current token so it can be pasted into the ALIEXPRESS_ACCESS_TOKEN
+// env var in Render (persists across deploys, avoiding re-auth on every push).
+// Guarded with the admin key.
+app.get('/api/aliexpress/token-export', (req, res) => {
+  if (req.query.key !== (process.env.ADMIN_SECRET || 'admin123')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const db = readDB();
+  const auth = db.aliexpressAuth || app.locals.aliExpressToken || global.__aliexpressToken;
+  if (!auth || !auth.access_token) return res.json({ error: 'No hay token conectado' });
+  res.json({ access_token: auth.access_token, expire_time: auth.expire_time });
+});
+
 app.post('/api/aliexpress/disconnect', (req, res) => {
   delete app.locals.aliExpressToken;
   delete global.__aliexpressToken;
@@ -642,4 +655,24 @@ app.get('/api/status', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`NEXONE server running at http://localhost:${PORT}`);
+
+  // Auto-sync on startup so the store fills itself after a deploy/restart
+  setTimeout(() => {
+    try {
+      const syncEngine = require('./sync-engine');
+      const { getProvider } = require('./providers');
+      const provider = getProvider('aliexpress');
+      const db = readDB();
+      if (!provider || !provider.isConfigured) return console.log('Auto-sync: AliExpress no configurada');
+      if (!provider._getToken()) return console.log('Auto-sync: sin token, omite (reconectar en Admin > Sync)');
+      if (db.autoSyncTriggered) return console.log('Auto-sync: ya disparado en esta instancia');
+      if (db.products && db.products.length > 0) return console.log('Auto-sync: ya hay ' + db.products.length + ' productos');
+      db.autoSyncTriggered = { at: new Date().toISOString(), query: process.env.SYNC_KEYWORDS || 'ropa de mujer' };
+      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+      const job = syncEngine.createJob({ provider: 'aliexpress', searchType: 'keywords', searchQuery: process.env.SYNC_KEYWORDS || 'ropa de mujer' }, app.locals.broadcast);
+      console.log('Auto-sync iniciado: ' + job.id);
+    } catch (e) {
+      console.error('Auto-sync fallo: ' + e.message);
+    }
+  }, 5000);
 });
