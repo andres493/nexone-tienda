@@ -72,7 +72,8 @@ class AliExpressProvider extends ProviderAdapter {
         let data = '';
         resp.on('data', (c) => { data += c; });
         resp.on('end', () => {
-          try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid JSON from AliExpress')); }
+          try { resolve(JSON.parse(data)); }
+          catch { reject(new Error('Invalid JSON from AliExpress: ' + data.slice(0, 400))); }
         });
       });
       req.on('error', reject);
