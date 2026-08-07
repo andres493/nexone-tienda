@@ -90,6 +90,7 @@ class AliExpressProvider extends ProviderAdapter {
     const result = await this._request('aliexpress.ds.text.search', {
       key_word: query,
       local_country: 'US',
+      countryCode: 'US',
       local_language: 'en',
       page_no: String(page),
       page_size: String(Math.min(pageSize, this.maxPageSize)),
