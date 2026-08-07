@@ -98,10 +98,10 @@ class AliExpressProvider extends ProviderAdapter {
     });
     const resp = result?.aliexpress_ds_text_search_response || result?.aliexpress_ds_product_search_response;
     if (!resp) return { products: [], total: 0, error: result?.error_response?.msg || 'API Error' };
-    const raw = resp?.result?.products || resp?.result?.list || resp?.result?.item_list || [];
+    const raw = resp?.result?.products || resp?.result?.list || resp?.result?.item_list || resp?.result?.product_list || [];
     return {
       products: raw.map(p => this.mapProduct(p)),
-      total: resp?.result?.total_count || resp?.result?.total || raw.length,
+      total: resp?.result?.total_count || resp?.result?.totalCount || resp?.result?.total_num || resp?.result?.total || raw.length,
       page, pageSize,
     };
   }
