@@ -457,6 +457,13 @@ app.post('/api/search-amazon', async (req, res) => {
 // ─── Sync Module Routes ───
 app.use('/api/sync', syncRoutes);
 
+// Recover jobs that were interrupted by a container restart/deploy
+try {
+  require('./sync-engine').recoverStaleJobs(app.locals.broadcast);
+} catch (e) {
+  console.error('Recovery de jobs fallo:', e.message);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // ═══ ALIEXPRESS DROP SHIPPING API (OAuth) ═══
 // ═══════════════════════════════════════════════════════════════════

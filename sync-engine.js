@@ -263,8 +263,37 @@ function createJob(params, broadcast) {
   addLog(db, job.id, 'info', `Job creado: ${job.provider} | ${job.searchType}: "${job.searchQuery}"`);
   writeDB(db);
   activeJobs.set(job.id, { paused: false, cancelled: false });
-  runSyncJob(job.id, broadcast);
+  runSyncJob(job.id, broadcast).catch((e) => {
+    const db2 = ensureConfig(readDB());
+    updateJob(db2, job.id, { status: 'error', errorLog: [e.message] });
+    addLog(db2, job.id, 'error', 'Sync error: ' + e.message);
+    writeDB(db2);
+    if (broadcast) broadcast('sync-job-updated', db2.syncJobs.find(j => j.id === job.id));
+  });
   return job;
+}
+
+function recoverStaleJobs(broadcast) {
+  const db = ensureConfig(readDB());
+  let recovered = 0;
+  for (const job of db.syncJobs) {
+    if ((job.status === 'queued' || job.status === 'running') && !activeJobs.has(job.id)) {
+      activeJobs.set(job.id, { paused: false, cancelled: false });
+      runSyncJob(job.id, broadcast).catch((e) => {
+        const db2 = ensureConfig(readDB());
+        updateJob(db2, job.id, { status: 'error', errorLog: [e.message] });
+        addLog(db2, job.id, 'error', 'Sync error: ' + e.message);
+        writeDB(db2);
+        if (broadcast) broadcast('sync-job-updated', db2.syncJobs.find(j => j.id === job.id));
+      });
+      recovered++;
+    }
+  }
+  if (recovered > 0) {
+    addLog(db, null, 'info', `Recuperados ${recovered} jobs pendientes tras reinicio`);
+    writeDB(db);
+  }
+  return recovered;
 }
 
 function pauseJob(jobId) {
@@ -337,5 +366,5 @@ function getActiveSyncCount() {
 module.exports = {
   createJob, pauseJob, resumeJob, cancelJob,
   getConfig, updateConfig, getJobs, getJob, getLogs,
-  getActiveSyncCount, ensureConfig,
+  getActiveSyncCount, ensureConfig, recoverStaleJobs,
 };

@@ -8,6 +8,11 @@ router.get('/providers', (req, res) => {
   res.json(getAllProviders());
 });
 
+router.get('/recover', (req, res) => {
+  const recovered = syncEngine.recoverStaleJobs(req.app.locals.broadcast);
+  res.json({ recovered });
+});
+
 router.get('/config', (req, res) => {
   if (req.query.save !== '1') return res.json(syncEngine.getConfig());
   const q = req.query;
@@ -25,6 +30,7 @@ router.post('/start', startSyncHandler);
 router.get('/start', startSyncHandler);
 
 function startSyncHandler(req, res) {
+  syncEngine.recoverStaleJobs(req.app.locals.broadcast);
   const { provider, searchType, searchQuery, profitMargin } = req.method === 'GET' ? req.query : req.body;
   if (!provider || !searchQuery) return res.status(400).json({ error: 'Proveedor y termino de busqueda son requeridos' });
   const activeCount = syncEngine.getActiveSyncCount();
