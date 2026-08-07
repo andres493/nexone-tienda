@@ -1,0 +1,18 @@
+app = "nexone-tienda"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ALIEXPRESS_REDIRECT_URI = "https://nexone-tienda.fly.dev/api/aliexpress/callback"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[mounts]]
+  source = "data_store"
+  destination = "/app/data"
