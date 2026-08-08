@@ -186,6 +186,8 @@ async function runSyncJob(jobId, broadcast) {
               const imageChanged = existing.image !== normalized.image;
               allProducts[idx] = {
                 ...allProducts[idx],
+                name: normalized.name,
+                category: normalized.category,
                 price: normalized.price,
                 old: normalized.old,
                 image: normalized.image,

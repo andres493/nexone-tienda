@@ -22,8 +22,7 @@ class ProviderAdapter {
     return Math.round(cop * (1 + marginPercent / 100));
   }
 
-  normalize(raw, profitMargin) {
-    const mapped = this.mapProduct(raw);
+  normalize(mapped, profitMargin) {
     const priceUsd = parseFloat(mapped.price) || 0;
     const priceCop = this.applyProfit(priceUsd, profitMargin);
     const shippingDays = parseInt(mapped.shippingDays) || 0;

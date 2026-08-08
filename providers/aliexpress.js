@@ -128,6 +128,51 @@ class AliExpressProvider extends ProviderAdapter {
     return this.mapProduct(p);
   }
 
+  _categoryFor(p) {
+    const firstId = String(p.cate_id || p.cateId || '').split(',')[0];
+    const idMap = {
+      '200000343': 'Moda', '200000345': 'Moda', '200000346': 'Moda', '200000347': 'Moda', '200000348': 'Moda',
+      '200000778': 'Moda', '200000779': 'Moda', '200000791': 'Moda', '200000790': 'Moda',
+      '201336103': 'Moda', '200000624': 'Moda',
+      '200000634': 'Belleza', '200000635': 'Belleza',
+      '200000656': 'Juguetes', '200000657': 'Juguetes',
+      '200000364': 'Tecnologia', '200000366': 'Tecnologia',
+      '200000330': 'Hogar', '200000331': 'Hogar', '200000332': 'Hogar',
+      '200000535': 'Deportes', '200000537': 'Deportes',
+      '200000585': 'Mascotas', '200000586': 'Mascotas',
+      '200000504': 'Bebes',
+      '200000677': 'Herramientas',
+      '200000409': 'Salud',
+      '200000433': 'Alimentos',
+      '200000577': 'Automotriz',
+    };
+    if (firstId && idMap[firstId]) return idMap[firstId];
+    const t = (p.title || p.product_title || '').toLowerCase();
+    const rules = [
+      ['Tecnologia', ['smartwatch', 'phone', 'smartphone', 'charger', 'cable', 'earphone', 'earbud', 'bluetooth', 'speaker', 'tablet', 'laptop', 'keyboard', 'mouse', 'monitor', 'camera', 'drone', 'usb', 'gps', 'celular', 'led']],
+      ['Belleza', ['makeup', 'cosmetic', 'lipstick', 'mascara', 'skincare', 'cream', 'serum', 'nail', 'perfume', 'brush', 'eyelash', 'beauty', 'maquillaje']],
+      ['Moda', ['cloth', 'dress', 'shirt', 'blouse', 'skirt', 'pant', 'jean', 'jacket', 'coat', 'hoodie', 'sweater', 'cardigan', 't-shirt', 'tee', 'blazer', 'suit', 'underwear', 'sock', 'shoe', 'boot', 'sneaker', 'bag', 'handbag', 'backpack', 'jewelry', 'necklace', 'ring', 'earring', 'scarf', 'hat', 'cap', 'fashion', 'women', 'men', 'ropa', 'vestido', 'blusa', 'camisa', 'pantalon', 'vestir', 'sweatshirt']],
+      ['Hogar', ['home', 'kitchen', 'cook', 'pan', 'pot', 'cup', 'mug', 'glass', 'plate', 'bowl', 'storage', 'organizer', 'furniture', 'sofa', 'table', 'chair', 'lamp', 'decor', 'pillow', 'blanket', 'towel', 'curtain', 'hogar']],
+      ['Fitness', ['gym', 'fitness', 'yoga', 'dumbbell', 'weight', 'exercise', 'running']],
+      ['Deportes', ['ball', 'soccer', 'football', 'basketball', 'tennis', 'cycling', 'outdoor', 'camping', 'fishing', 'sport']],
+      ['Mascotas', ['pet', 'dog', 'cat', 'animal', 'leash', 'collar']],
+      ['Bebes', ['baby', 'infant', 'diaper', 'stroller', 'bebe']],
+      ['Juguetes', ['toy', 'doll', 'lego', 'puzzle', 'kids', 'children', 'game']],
+      ['Herramientas', ['tool', 'drill', 'screwdriver', 'wrench', 'hammer', 'diy']],
+      ['Salud', ['health', 'medical', 'medicine', 'mask', 'thermometer', 'salud']],
+      ['Alimentos', ['snack', 'tea', 'coffee', 'spice', 'food']],
+      ['Automotriz', ['car', 'auto', 'vehicle', 'tire', 'motorcycle', 'engine', 'automotriz']],
+      ['Oficina', ['office', 'desk', 'notebook', 'pen', 'paper', 'stationery']],
+      ['Jardin', ['garden', 'plant', 'seed', 'flower', 'jardin']],
+      ['Musica', ['music', 'guitar', 'piano', 'microphone', 'musica']],
+      ['Fotografia', ['camera', 'photo', 'lens', 'tripod', 'photograph']],
+    ];
+    for (const [cat, words] of rules) {
+      if (words.some(w => t.includes(w))) return cat;
+    }
+    return 'Otros';
+  }
+
   mapProduct(p) {
     const shippingDays = p.shipping_days || p.shippingDays || p.shipping?.days || '';
     const stockQty = p.min_order_quantity || p.minOrderQty || 1;
@@ -154,7 +199,7 @@ class AliExpressProvider extends ProviderAdapter {
       shippingDays: shippingDays || '20',
       shippingCost: p.shipping_cost || p.shippingCost || p.shipping?.cost || '',
       storeName: p.store_name || p.storeName || p.shop_name || p.shopName || '',
-      category: p.cate_id || p.cateId || '',
+      category: this._categoryFor(p),
       description: p.title || p.product_title || p.productTitle || '',
       currency: p.target_original_price_currency || p.targetOriginalPriceCurrency || p.sale_price_currency || p.salePriceCurrency || 'USD',
       stockStatus: p.stock_status || p.stockStatus || p.stock || 'in_stock',
